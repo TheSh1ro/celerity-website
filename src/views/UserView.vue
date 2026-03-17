@@ -45,10 +45,17 @@ interface RpcResponse {
   username?: string
   email?: string | null
   credits?: number
+  days?: number
+  price?: number
 }
 
 interface SupabaseError {
   message: string
+}
+
+interface ResalePlan {
+  days: number
+  price: number
 }
 
 // ── Estado ───────────────────────────────────────────────────────────────────
@@ -57,6 +64,7 @@ const profile = ref<UserProfile | null>(null)
 const keys = ref<Key[]>([])
 const loadingProfile = ref(true)
 const loadingKeys = ref(true)
+const loadingResalePlan = ref(true)
 const toasts = ref<Toast[]>([])
 let toastId = 0
 
@@ -69,6 +77,9 @@ const revertTarget = ref<Key | null>(null)
 
 const showBuyConfirm = ref(false)
 const buyTarget = ref<number | null>(null)
+
+// Plano de revenda dinâmico
+const resalePlan = ref<ResalePlan | null>(null)
 
 // ── Computed ─────────────────────────────────────────────────────────────────
 
@@ -90,13 +101,12 @@ const keyStats = computed(() => ({
   reverted: keys.value.filter((k) => k.reverted).length,
 }))
 
+// Planos para uso próprio (comprar dias)
 const plans = [
   { days: 7, price: 10 },
   { days: 15, price: 20 },
   { days: 30, price: 30 },
 ]
-
-const keyPlan = { days: 30, price: 20 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -193,6 +203,28 @@ async function loadKeys() {
   }
 }
 
+async function loadResalePlan() {
+  loadingResalePlan.value = true
+  try {
+    const result = await rpc('get_active_resale_plan', {})
+    if (result.status === 'ok' && result.days && result.price !== undefined) {
+      resalePlan.value = {
+        days: result.days,
+        price: result.price,
+      }
+    } else {
+      // Fallback para valores padrão se não houver plano configurado
+      resalePlan.value = { days: 30, price: 20 }
+    }
+  } catch (e) {
+    addToast('Erro ao carregar plano de revenda: ' + getErrorMessage(e), 'error')
+    // Fallback
+    resalePlan.value = { days: 30, price: 20 }
+  } finally {
+    loadingResalePlan.value = false
+  }
+}
+
 // ── Ações ─────────────────────────────────────────────────────────────────────
 
 async function generateKey() {
@@ -208,6 +240,7 @@ async function generateKey() {
       session_invalid: 'Sessão inválida. Faça login novamente.',
       inactive: 'Conta desativada.',
       insufficient_credits: 'Créditos insuficientes.',
+      no_resale_plan: 'Plano de revenda não configurado.',
     }
     addToast(messages[result.status] ?? `Erro: ${result.status}`, 'error')
   } catch (e) {
@@ -267,14 +300,17 @@ async function buyDays() {
       p_duration_days: buyTarget.value,
     })
     if (result.status === 'ok') {
-      addToast(`+${buyTarget.value} dias adicionados!`, 'success')
+      const msg =
+        result.days_ago === 0
+          ? `Licença ativada por ${buyTarget.value} dias!`
+          : `Licença estendida em ${buyTarget.value} dias!`
+      addToast(msg, 'success')
       await loadProfile()
       return
     }
     const messages: Record<string, string> = {
       session_invalid: 'Sessão inválida.',
-      inactive: 'Conta desativada.',
-      invalid_plan: 'Plano inválido.',
+      plan_not_found: 'Plano não encontrado.',
       insufficient_credits: 'Créditos insuficientes.',
     }
     addToast(messages[result.status] ?? `Erro: ${result.status}`, 'error')
@@ -292,19 +328,18 @@ function copyKey(key: string) {
 }
 
 function logout() {
-  localStorage.clear()
+  localStorage.removeItem('session_token')
   router.push('/')
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Lifecycle ────────────────────────────────────────────────────────────────
 
 onMounted(async () => {
   if (!token.value) {
     router.push('/')
     return
   }
-  await loadProfile()
-  await loadKeys()
+  await Promise.all([loadProfile(), loadKeys(), loadResalePlan()])
 })
 </script>
 
@@ -334,7 +369,7 @@ onMounted(async () => {
     </div>
   </header>
 
-  <main class="page-content" v-if="!loadingProfile">
+  <main class="page-content" v-if="!loadingProfile && !loadingResalePlan">
     <!-- STATS DE KEYS -->
     <div class="flex gap-4 wrap" style="margin-bottom: var(--space-6)">
       <div class="stat-card">
@@ -356,18 +391,20 @@ onMounted(async () => {
     </div>
 
     <!-- GERAR KEY -->
-    <div class="section-block">
+    <div class="section-block" v-if="resalePlan">
       <div
         class="flex items-center justify-between wrap gap-4"
         style="margin-bottom: var(--space-4)"
       >
         <div>
-          <div class="section-label">GERAR KEY</div>
-          <p class="section-desc">{{ keyPlan.days }} dias · custa {{ keyPlan.price }} créditos</p>
+          <div class="section-label">GERAR KEY DE REVENDA</div>
+          <p class="section-desc">
+            {{ resalePlan.days }} dias · custa {{ resalePlan.price }} créditos
+          </p>
         </div>
         <button
           class="btn btn-primary"
-          :disabled="generatingKey || (profile?.credits ?? 0) < keyPlan.price"
+          :disabled="generatingKey || (profile?.credits ?? 0) < resalePlan.price"
           @click="generateKey"
         >
           <span class="spinner" v-if="generatingKey" />
@@ -399,51 +436,42 @@ onMounted(async () => {
 
     <div class="divider" style="margin-bottom: var(--space-6)" />
 
-    <!-- HISTÓRICO DE KEYS -->
-    <div>
-      <div class="flex items-center justify-between" style="margin-bottom: var(--space-4)">
-        <div class="section-label">HISTÓRICO DE KEYS</div>
-        <button class="btn btn-ghost btn-sm" @click="loadKeys">↺ ATUALIZAR</button>
-      </div>
+    <!-- KEYS GERADAS -->
+    <div class="section-block">
+      <div class="section-label" style="margin-bottom: var(--space-4)">KEYS GERADAS</div>
       <div class="table-wrap">
         <div class="loading-row" v-if="loadingKeys"><span class="spinner" /> Carregando…</div>
+        <div class="empty-keys" v-else-if="keys.length === 0">
+          <span>Nenhuma key gerada ainda.</span>
+          <span>Gere keys para revenda acima ↑</span>
+        </div>
         <table v-else>
           <thead>
             <tr>
               <th>Key</th>
-              <th>Gerada em</th>
+              <th>Criada em</th>
+              <th>Dias</th>
+              <th>Preço</th>
               <th>Status</th>
-              <th>Usada em</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-if="keys.length === 0">
-              <td colspan="5" class="empty-row">Nenhuma key gerada ainda.</td>
-            </tr>
             <tr v-for="k in keys" :key="k.id">
-              <td>
-                <div class="key-cell">
-                  <span class="mono key-value">{{ k.key }}</span>
-                  <button
-                    class="btn btn-ghost btn-sm"
-                    @click="copyKey(k.key)"
-                    v-if="!k.used && !k.reverted"
-                  >
-                    ⎘
-                  </button>
-                </div>
+              <td class="mono key-cell">
+                <span>{{ k.key }}</span>
+                <button class="btn-copy" @click="copyKey(k.key)">⎘</button>
               </td>
               <td>{{ formatDate(k.created_at) }}</td>
+              <td class="mono">{{ k.duration_days }}d</td>
+              <td class="mono">{{ k.price }}</td>
               <td>
                 <span :class="keyStatusBadge(k)">{{ keyStatusLabel(k) }}</span>
               </td>
-              <td>{{ formatDate(k.used_at) }}</td>
               <td>
                 <button
-                  class="btn btn-danger btn-sm"
-                  v-if="!k.used && !k.reverted"
-                  :disabled="revertingKeyId === k.id"
+                  class="btn btn-ghost btn-sm"
+                  :disabled="k.used || k.reverted || revertingKeyId === k.id"
                   @click="openRevertConfirm(k)"
                 >
                   <span class="spinner" v-if="revertingKeyId === k.id" />
@@ -457,62 +485,42 @@ onMounted(async () => {
     </div>
   </main>
 
+  <!-- LOADING -->
   <div class="loading-page" v-else>
     <span class="spinner" />
   </div>
 
-  <!-- MODAL: CONFIRMAR REVERSÃO -->
+  <!-- MODAL: REVERTER KEY -->
   <div class="overlay" v-if="showRevertConfirm" @click.self="showRevertConfirm = false">
     <div class="modal">
       <div class="modal-header">
         <span class="modal-title">Reverter key</span>
       </div>
       <div class="flex flex-col gap-2">
-        <span
-          >Deseja reverter esta key e recuperar
-          <strong class="text-amber">{{ revertTarget?.price }} créditos</strong>?
-        </span>
-        <span class="mono key-preview">{{ revertTarget?.key }}</span>
-        <span style="color: var(--muted); font-size: var(--text-sm)">
-          A key será invalidada permanentemente.
-        </span>
+        <span>Deseja reverter esta key?</span>
+        <div class="key-badge mono">{{ revertTarget?.key }}</div>
+        <span style="color: var(--muted); font-size: var(--text-sm)"
+          >Os créditos serão devolvidos e a key será invalidada.</span
+        >
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" @click="showRevertConfirm = false">Cancelar</button>
-        <button class="btn btn-danger" @click="revertKey">Reverter</button>
+        <button class="btn btn-primary" @click="revertKey">Reverter</button>
       </div>
     </div>
   </div>
 
-  <!-- MODAL: CONFIRMAR COMPRA DE DIAS -->
+  <!-- MODAL: COMPRAR DIAS -->
   <div class="overlay" v-if="showBuyConfirm" @click.self="showBuyConfirm = false">
     <div class="modal">
       <div class="modal-header">
         <span class="modal-title">Estender licença</span>
       </div>
       <div class="flex flex-col gap-2">
-        <span>
-          Adicionar <strong class="text-green">{{ buyTarget }} dias</strong> por
-          <strong class="text-amber">
-            {{ plans.find((p) => p.days === buyTarget)?.price ?? '?' }} créditos </strong
-          >?
-        </span>
-        <span style="color: var(--muted); font-size: var(--text-sm)">
-          Nova expiração:
-          {{
-            formatDate(
-              new Date(
-                Math.max(
-                  profile?.software_access_until
-                    ? new Date(profile.software_access_until).getTime()
-                    : Date.now(),
-                  Date.now(),
-                ) +
-                  (buyTarget ?? 0) * 86400000,
-              ).toISOString(),
-            )
-          }}
-        </span>
+        <span>Deseja estender sua licença em {{ buyTarget }} dias?</span>
+        <div class="plan-info">
+          <span>Custo: {{ plans.find((p) => p.days === buyTarget)?.price }} créditos</span>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-ghost" @click="showBuyConfirm = false">Cancelar</button>
@@ -535,6 +543,10 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  padding: var(--space-6) var(--space-5);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
 }
 
 .header-pill {
@@ -591,6 +603,8 @@ onMounted(async () => {
 }
 
 .plan-days {
+  font-size: 2rem;
+  font-weight: 700;
   font-family: var(--font-mono);
   font-size: var(--text-2xl);
   font-weight: 600;
