@@ -4,18 +4,29 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { rpc } from '@/api'
 
+export interface UserProfile {
+  status: string
+  id: string
+  username: string
+  email: string | null
+  is_admin: boolean
+  is_active: boolean
+  credits: number
+  software_access_until: string | null
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const router = useRouter()
 
   // State
   const token = ref<string>(localStorage.getItem('session_token') || '')
-  const user = ref<any>(null)
+  const user = ref<UserProfile | null>(null)
   const loading = ref(false)
   const error = ref('')
 
   // Getters
   const isAuthenticated = computed(() => !!token.value)
-  const isAdmin = computed(() => user.value?.is_admin || false)
+  const isAdmin = computed(() => user.value?.is_admin ?? false)
 
   // Actions
   async function login(username: string, password: string, activationKey?: string, email?: string) {
@@ -44,16 +55,15 @@ export const useAuthStore = defineStore('auth', () => {
         }
       }
 
-      // Login
       const loginResult = await rpc('web_login', {
         p_username: username.trim(),
         p_password: password,
       })
 
       if (loginResult.status === 'ok') {
-        token.value = loginResult.token
-        localStorage.setItem('session_token', loginResult.token)
-        localStorage.setItem('software_access_until', loginResult.software_access_until)
+        token.value = loginResult.token as string
+        localStorage.setItem('session_token', loginResult.token as string)
+        localStorage.setItem('software_access_until', loginResult.software_access_until as string)
         router.push('/')
         return true
       }
@@ -66,7 +76,8 @@ export const useAuthStore = defineStore('auth', () => {
       }
       error.value = messages[loginResult.status] || `Erro: ${loginResult.status}`
       return false
-    } catch (e) {
+    } catch (e: unknown) {
+      void e
       error.value = 'Erro de conexão. Tente novamente.'
       return false
     } finally {
@@ -88,11 +99,12 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const result = await rpc('get_user_profile', { p_token: token.value })
       if (result.status === 'ok') {
-        user.value = result
+        user.value = result as unknown as UserProfile
         return result
       }
       return null
-    } catch (e) {
+    } catch (e: unknown) {
+      void e
       return null
     }
   }

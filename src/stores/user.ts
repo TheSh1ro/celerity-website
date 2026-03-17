@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { rpc } from '@/api'
 import { useAuthStore } from './auth'
+import type { UserProfile } from './auth'
 
 export interface Key {
   id: string
@@ -26,7 +27,7 @@ export const useUserStore = defineStore('user', () => {
   const authStore = useAuthStore()
 
   // State
-  const profile = ref<any>(null)
+  const profile = ref<UserProfile | null>(null)
   const keys = ref<Key[]>([])
   const resalePlan = ref<ResalePlan | null>(null)
   const plans = ref([
@@ -70,7 +71,7 @@ export const useUserStore = defineStore('user', () => {
     try {
       const result = await rpc('get_user_profile', { p_token: authStore.token })
       if (result.status === 'ok') {
-        profile.value = result
+        profile.value = result as unknown as UserProfile
       }
     } finally {
       loading.value.profile = false
@@ -84,7 +85,7 @@ export const useUserStore = defineStore('user', () => {
     try {
       const result = await rpc('get_user_keys', { p_token: authStore.token })
       if (result.status === 'ok') {
-        keys.value = result.keys || []
+        keys.value = (result.keys as Key[]) || []
       }
     } finally {
       loading.value.keys = false
@@ -97,8 +98,8 @@ export const useUserStore = defineStore('user', () => {
       const result = await rpc('get_active_resale_plan', {})
       if (result.status === 'ok') {
         resalePlan.value = {
-          days: result.days,
-          price: result.price,
+          days: result.days as number,
+          price: result.price as number,
           is_active: true,
         }
       }
@@ -116,7 +117,7 @@ export const useUserStore = defineStore('user', () => {
 
       if (result.status === 'ok') {
         await Promise.all([loadProfile(), loadKeys()])
-        return { success: true, key: result.key }
+        return { success: true, key: result.key as string }
       }
 
       const messages: Record<string, string> = {

@@ -28,6 +28,8 @@ export interface ResalePlan {
   is_active: boolean
 }
 
+type UserPatch = Partial<Omit<User, 'id' | 'created_at'>>
+
 export const useAdminStore = defineStore('admin', () => {
   // State
   const users = ref<User[]>([])
@@ -89,8 +91,9 @@ export const useAdminStore = defineStore('admin', () => {
       const jwt = await getJwt()
       const data = await supabaseFetch('resale_plans?duration_days=eq.30', {}, jwt)
       const plans = data as ResalePlan[]
-      if (plans.length > 0) {
-        resalePlan.value = plans[0]
+      const first = plans[0]
+      if (first !== undefined) {
+        resalePlan.value = first
       }
     } finally {
       loading.value.resalePlan = false
@@ -149,7 +152,7 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  async function updateUser(userId: string, patch: any) {
+  async function updateUser(userId: string, patch: UserPatch) {
     loading.value.saveUser = true
     try {
       const jwt = await getJwt()

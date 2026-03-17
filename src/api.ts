@@ -2,9 +2,9 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-interface RpcResponse {
+export interface RpcResponse {
   status: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export async function rpc(
@@ -40,13 +40,13 @@ export async function supabaseFetch(
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${jwt || SUPABASE_ANON_KEY}`,
       Prefer: 'return=representation',
-      ...((opts.headers as Record<string, string>) ?? {}),
+      ...(opts.headers as Record<string, string>),
     },
   })
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.message || `HTTP ${res.status}`)
+    throw new Error((err as { message?: string }).message || `HTTP ${res.status}`)
   }
 
   const text = await res.text()
