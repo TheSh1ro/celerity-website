@@ -1,54 +1,19 @@
+<!-- AdminView.vue -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { createClient } from '@supabase/supabase-js'
+import { useAdminStore } from '@/stores/admin'
+import { useToastStore } from '@/stores/toast'
+import { useUserStore } from '@/stores/user'
 
 const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL as string,
-  import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
 )
 
-// ── Tipos ────────────────────────────────────────────────────────────────────
-
-interface User {
-  id: string
-  username: string
-  email: string | null
-  is_active: boolean
-  credits: number
-  software_access_until: string | null
-  active_token: string | null
-  machine_id: string | null
-  last_seen: string | null
-  created_at: string
-}
-
-interface Toast {
-  id: number
-  message: string
-  type: 'success' | 'error' | 'info'
-}
-
-type EditLicenseOption = 7 | 15 | 30 | 'date' | ''
-
-interface UserPatch {
-  is_active: boolean
-  software_access_until?: string
-  password_hash?: string
-}
-
-interface SupabaseError {
-  message: string
-}
-
-interface ResalePlan {
-  duration_days: number
-  price: number
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
-
-// ── Auth ─────────────────────────────────────────────────────────────────────
+const adminStore = useAdminStore()
+const toastStore = useToastStore()
+const userStore = useUserStore()
 
 const authLoading = ref(true)
 const isAdmin = ref(false)
@@ -57,12 +22,50 @@ const loginPassword = ref('')
 const loginLoading = ref(false)
 const loginError = ref('')
 
+const showResaleModal = ref(false)
+const showCreditsModal = ref(false)
+const showEditModal = ref(false)
+const showDeleteModal = ref(false)
+const showLogoutModal = ref(false)
+
+const resaleForm = ref({ days: 30, price: 20, is_active: true })
+const creditsForm = ref({
+  userId: '',
+  username: '',
+  current: 0,
+  amount: '',
+  operation: 'add' as 'add' | 'remove',
+})
+const editForm = ref({
+  id: '',
+  username: '',
+  password: '',
+  licenseDays: '' as any,
+  customDate: '',
+  isActive: true,
+})
+
+onMounted(async () => {
+  await checkSession()
+})
+
 async function checkSession() {
   authLoading.value = true
   const { data } = await supabase.auth.getSession()
-  const meta = data.session?.user?.app_metadata as Record<string, unknown> | undefined
+  const meta = data.session?.user?.app_metadata as any
   isAdmin.value = meta?.is_admin === true
   authLoading.value = false
+
+  if (isAdmin.value) {
+    await Promise.all([adminStore.loadUsers(), adminStore.loadResalePlan()])
+    if (adminStore.resalePlan) {
+      resaleForm.value = {
+        days: adminStore.resalePlan.duration_days,
+        price: adminStore.resalePlan.price,
+        is_active: adminStore.resalePlan.is_active,
+      }
+    }
+  }
 }
 
 async function adminLogin() {
@@ -71,24 +74,28 @@ async function adminLogin() {
     loginError.value = 'Preencha e-mail e senha.'
     return
   }
+
   loginLoading.value = true
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail.value,
       password: loginPassword.value,
     })
+
     if (error) {
       loginError.value = error.message
       return
     }
-    const meta = data.user?.app_metadata as Record<string, unknown> | undefined
+
+    const meta = data.user?.app_metadata as any
     if (meta?.is_admin !== true) {
       await supabase.auth.signOut()
       loginError.value = 'Acesso negado. Conta sem permissão de admin.'
       return
     }
+
     isAdmin.value = true
-    await loadUsers()
+    await Promise.all([adminStore.loadUsers(), adminStore.loadResalePlan()])
   } finally {
     loginLoading.value = false
   }
@@ -101,920 +108,966 @@ async function logout() {
   loginPassword.value = ''
 }
 
-// ── Estado ───────────────────────────────────────────────────────────────────
-
-const users = ref<User[]>([])
-const loading = ref(false)
-const search = ref('')
-const toasts = ref<Toast[]>([])
-let toastId = 0
-
-const showEdit = ref(false)
-const showConfirm = ref(false)
-const showKeyModal = ref(false)
-const showCreditsModal = ref(false)
-
-const generatingKey = ref(false)
-const lastGeneratedKey = ref<string | null>(null)
-
-const editId = ref('')
-const editUsername = ref('')
-const editPassword = ref('')
-const editLicenseDays = ref<EditLicenseOption>('')
-const editCustomDate = ref('')
-const editIsActive = ref(true)
-const editLoading = ref(false)
-
-// Credits modal
-const creditsUserId = ref('')
-const creditsUsername = ref('')
-const creditsCurrentAmount = ref(0)
-const creditsOperation = ref<'add' | 'remove'>('add')
-const creditsAmount = ref('')
-const creditsLoading = ref(false)
-
-const confirmTitle = ref('')
-const confirmMessage = ref('')
-const confirmSub = ref('')
-const confirmDanger = ref(false)
-const confirmLoading = ref(false)
-let pendingAction: (() => Promise<void>) | null = null
-
-// Resale plan
-const resalePlan = ref<ResalePlan | null>(null)
-const loadingResalePlan = ref(false)
-const showResalePlanModal = ref(false)
-const resalePlanDays = ref(30)
-const resalePlanPrice = ref('')
-const resalePlanActive = ref(true)
-const resalePlanLoading = ref(false)
-
-// ── Computed ─────────────────────────────────────────────────────────────────
-
-const filteredUsers = computed(() => {
-  const q = search.value.toLowerCase()
-  if (!q) return users.value
-  return users.value.filter(
-    (u) => u.username.toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q),
+async function saveResalePlan() {
+  const result = await adminStore.saveResalePlan(
+    resaleForm.value.days,
+    resaleForm.value.price,
+    resaleForm.value.is_active,
   )
-})
 
-const stats = computed(() => ({
-  total: users.value.length,
-  active: users.value.filter((u) => u.is_active && isLicenseActive(u)).length,
-  inactive: users.value.filter((u) => !u.is_active).length,
-  expired: users.value.filter((u) => u.is_active && !isLicenseActive(u)).length,
-}))
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function isLicenseActive(u: User): boolean {
-  if (!u.software_access_until) return false
-  return new Date(u.software_access_until) > new Date()
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
-}
-
-function daysLeft(iso: string | null): string {
-  if (!iso) return '—'
-  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)
-  return diff <= 0 ? 'expirado' : `${diff}d`
-}
-
-function addToast(message: string, type: Toast['type'] = 'info') {
-  const id = ++toastId
-  toasts.value.push({ id, message, type })
-  setTimeout(() => {
-    toasts.value = toasts.value.filter((t) => t.id !== id)
-  }, 3200)
-}
-
-function isSupabaseError(value: unknown): value is SupabaseError {
-  return typeof value === 'object' && value !== null && 'message' in value
-}
-
-function getErrorMessage(e: unknown): string {
-  if (isSupabaseError(e)) return e.message
-  if (e instanceof Error) return e.message
-  return 'Erro desconhecido.'
-}
-
-// ── API ──────────────────────────────────────────────────────────────────────
-
-async function getJwt(): Promise<string> {
-  const { data } = await supabase.auth.getSession()
-  return data.session?.access_token ?? ''
-}
-
-async function sbFetch(path: string, opts: RequestInit = {}): Promise<unknown> {
-  const jwt = await getJwt()
-  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL as string}/rest/v1/${path}`, {
-    ...opts,
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-      Authorization: `Bearer ${jwt}`,
-      Prefer: 'return=representation',
-      ...(opts.headers ?? {}),
-    },
-  })
-  if (!res.ok) {
-    const err: unknown = await res.json().catch(() => ({}))
-    throw new Error(isSupabaseError(err) ? err.message : `HTTP ${res.status}`)
-  }
-  const text = await res.text()
-  return text ? (JSON.parse(text) as unknown) : null
-}
-
-async function loadUsers() {
-  loading.value = true
-  try {
-    const data = await sbFetch('users?select=*&order=created_at.desc')
-    users.value = data as User[]
-  } catch (e) {
-    addToast('Erro ao carregar usuários: ' + getErrorMessage(e), 'error')
-  } finally {
-    loading.value = false
+  if (result.success) {
+    toastStore.success('Plano de revenda atualizado!')
+    showResaleModal.value = false
+  } else {
+    toastStore.error(result.error || 'Erro ao salvar plano')
   }
 }
 
-// ── Gerar key ────────────────────────────────────────────────────────────────
-
-async function adminGenerateKey() {
-  generatingKey.value = true
-  try {
-    const jwt = await getJwt()
-    const res = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL as string}/rest/v1/rpc/admin_generate_key`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-          Authorization: `Bearer ${jwt}`,
-        },
-        body: JSON.stringify({}),
-      },
-    )
-    const result = (await res.json()) as { status: string; key?: string }
-    if (result.status === 'ok' && result.key) {
-      lastGeneratedKey.value = result.key
-      showKeyModal.value = true
-    } else {
-      addToast(`Erro: ${result.status}`, 'error')
-    }
-  } catch (e) {
-    addToast('Erro: ' + getErrorMessage(e), 'error')
-  } finally {
-    generatingKey.value = false
+function openCreditsModal(user: any) {
+  creditsForm.value = {
+    userId: user.id,
+    username: user.username,
+    current: user.credits,
+    amount: '',
+    operation: 'add',
   }
-}
-
-function copyGeneratedKey() {
-  if (!lastGeneratedKey.value) return
-  navigator.clipboard.writeText(lastGeneratedKey.value)
-  addToast('Key copiada!', 'info')
-}
-
-// ── Ajustar créditos ─────────────────────────────────────────────────────────
-
-function openCreditsModal(u: User) {
-  creditsUserId.value = u.id
-  creditsUsername.value = u.username
-  creditsCurrentAmount.value = u.credits
-  creditsOperation.value = 'add'
-  creditsAmount.value = ''
   showCreditsModal.value = true
 }
 
 async function saveCredits() {
-  const amount = parseFloat(creditsAmount.value)
-
-  if (!creditsAmount.value || isNaN(amount) || amount <= 0) {
-    addToast('Informe um valor válido maior que zero', 'error')
+  const amount = parseFloat(creditsForm.value.amount)
+  if (!amount || amount <= 0) {
+    toastStore.error('Informe um valor válido')
     return
   }
 
-  creditsLoading.value = true
-  try {
-    const jwt = await getJwt()
-    const res = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL as string}/rest/v1/rpc/admin_adjust_credits`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-          Authorization: `Bearer ${jwt}`,
-        },
-        body: JSON.stringify({
-          p_user_id: creditsUserId.value,
-          p_amount: amount,
-          p_operation: creditsOperation.value,
-        }),
-      },
-    )
-    const result = (await res.json()) as {
-      status: string
-      username?: string
-      previous_credits?: number
-      new_credits?: number
-    }
+  const result = await adminStore.adjustCredits(
+    creditsForm.value.userId,
+    amount,
+    creditsForm.value.operation,
+  )
 
-    if (result.status === 'ok') {
-      const op = creditsOperation.value === 'add' ? 'adicionados' : 'removidos'
-      addToast(
-        `${amount} créditos ${op} para ${result.username}. Saldo: ${result.previous_credits} → ${result.new_credits}`,
-        'success',
-      )
-      showCreditsModal.value = false
-      await loadUsers()
-    } else if (result.status === 'insufficient_credits') {
-      addToast('Créditos insuficientes para remover este valor', 'error')
-    } else if (result.status === 'user_not_found') {
-      addToast('Usuário não encontrado', 'error')
-    } else {
-      addToast(`Erro: ${result.status}`, 'error')
-    }
-  } catch (e) {
-    addToast('Erro ao ajustar créditos: ' + getErrorMessage(e), 'error')
-  } finally {
-    creditsLoading.value = false
+  if (result.success) {
+    toastStore.success(
+      `${amount} créditos ${creditsForm.value.operation === 'add' ? 'adicionados' : 'removidos'} para ${creditsForm.value.username}`,
+    )
+    showCreditsModal.value = false
+  } else {
+    toastStore.error(result.error || 'Erro ao ajustar créditos')
   }
 }
 
-// ── Editar ───────────────────────────────────────────────────────────────────
-
-function openEdit(u: User) {
-  editId.value = u.id
-  editUsername.value = u.username
-  editPassword.value = ''
-  editLicenseDays.value = ''
-  editCustomDate.value = ''
-  editIsActive.value = u.is_active
-  showEdit.value = true
+function openEditModal(user: any) {
+  editForm.value = {
+    id: user.id,
+    username: user.username,
+    password: '',
+    licenseDays: '',
+    customDate: '',
+    isActive: user.is_active,
+  }
+  showEditModal.value = true
 }
 
 async function saveEdit() {
-  editLoading.value = true
-  try {
-    const patch: UserPatch = { is_active: editIsActive.value }
+  const patch: any = { is_active: editForm.value.isActive }
 
-    if (editPassword.value) {
-      patch.password_hash = editPassword.value
-    }
+  if (editForm.value.password) {
+    patch.password_hash = editForm.value.password
+  }
 
-    if (editLicenseDays.value === 'date' && editCustomDate.value) {
-      patch.software_access_until = new Date(editCustomDate.value).toISOString()
-    } else if (typeof editLicenseDays.value === 'number') {
-      const days = editLicenseDays.value
-      patch.software_access_until = new Date(Date.now() + days * 86400000).toISOString()
-    }
+  if (editForm.value.licenseDays === 'date' && editForm.value.customDate) {
+    patch.software_access_until = new Date(editForm.value.customDate).toISOString()
+  } else if (typeof editForm.value.licenseDays === 'number') {
+    patch.software_access_until = new Date(
+      Date.now() + editForm.value.licenseDays * 86400000,
+    ).toISOString()
+  }
 
-    await sbFetch(`users?id=eq.${editId.value}`, {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    })
+  const result = await adminStore.updateUser(editForm.value.id, patch)
 
-    addToast('Usuário atualizado!', 'success')
-    showEdit.value = false
-    await loadUsers()
-  } catch (e) {
-    addToast('Erro ao salvar: ' + getErrorMessage(e), 'error')
-  } finally {
-    editLoading.value = false
+  if (result.success) {
+    toastStore.success('Usuário atualizado!')
+    showEditModal.value = false
   }
 }
 
-// ── Logout forçado ───────────────────────────────────────────────────────────
-
-function confirmForceLogout(u: User) {
-  confirmTitle.value = 'Forçar logout'
-  confirmMessage.value = `Desconectar ${u.username}?`
-  confirmSub.value = 'O usuário precisará fazer login novamente.'
-  confirmDanger.value = false
-  showConfirm.value = true
-  pendingAction = async () => {
-    await sbFetch(`users?id=eq.${u.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ active_token: null, machine_id: null }),
-    })
-    addToast(`${u.username} desconectado.`, 'success')
-    await loadUsers()
-  }
+function openDeleteModal(user: any) {
+  adminStore.selectUser(user)
+  showDeleteModal.value = true
 }
 
-// ── Deletar ──────────────────────────────────────────────────────────────────
-
-function confirmDelete(u: User) {
-  confirmTitle.value = 'Deletar usuário'
-  confirmMessage.value = `Deletar ${u.username}?`
-  confirmSub.value = 'Esta ação não pode ser desfeita.'
-  confirmDanger.value = true
-  showConfirm.value = true
-  pendingAction = async () => {
-    await sbFetch(`users?id=eq.${u.id}`, { method: 'DELETE' })
-    addToast(`${u.username} deletado.`, 'success')
-    await loadUsers()
-  }
+async function confirmDelete() {
+  if (!adminStore.selectedUser) return
+  await adminStore.deleteUser(adminStore.selectedUser.id)
+  toastStore.success('Usuário deletado')
+  showDeleteModal.value = false
+  adminStore.closeUserPanel()
 }
 
-// ── Plano de Revenda ─────────────────────────────────────────────────────────
-
-async function loadResalePlan() {
-  loadingResalePlan.value = true
-  try {
-    const data = await sbFetch('resale_plans?duration_days=eq.30')
-    const plans = data as ResalePlan[]
-    if (plans.length > 0) {
-      resalePlan.value = plans[0]!
-    }
-  } catch (e) {
-    addToast('Erro ao carregar plano de revenda: ' + getErrorMessage(e), 'error')
-  } finally {
-    loadingResalePlan.value = false
-  }
+function openLogoutModal(user: any) {
+  adminStore.selectUser(user)
+  showLogoutModal.value = true
 }
 
-function openResalePlanModal() {
-  if (resalePlan.value) {
-    resalePlanDays.value = resalePlan.value.duration_days
-    resalePlanPrice.value = resalePlan.value.price.toString()
-    resalePlanActive.value = resalePlan.value.is_active
-  } else {
-    resalePlanDays.value = 30
-    resalePlanPrice.value = '20'
-    resalePlanActive.value = true
-  }
-  showResalePlanModal.value = true
+async function confirmLogout() {
+  if (!adminStore.selectedUser) return
+  await adminStore.forceLogout(adminStore.selectedUser.id)
+  toastStore.success('Usuário desconectado')
+  showLogoutModal.value = false
 }
 
-async function saveResalePlan() {
-  const price = parseFloat(resalePlanPrice.value)
-
-  if (!resalePlanPrice.value || isNaN(price) || price < 0) {
-    addToast('Informe um preço válido', 'error')
-    return
-  }
-
-  resalePlanLoading.value = true
-  try {
-    const jwt = await getJwt()
-    const res = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL as string}/rest/v1/rpc/admin_update_resale_plan`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
-          Authorization: `Bearer ${jwt}`,
-        },
-        body: JSON.stringify({
-          p_duration_days: resalePlanDays.value,
-          p_price: price,
-          p_is_active: resalePlanActive.value,
-        }),
-      },
-    )
-    const result = (await res.json()) as {
-      status: string
-      days?: number
-      price?: number
-      is_active?: boolean
-    }
-
-    if (result.status === 'ok') {
-      addToast('Plano de revenda atualizado!', 'success')
-      showResalePlanModal.value = false
-      await loadResalePlan()
-    } else {
-      addToast(`Erro: ${result.status}`, 'error')
-    }
-  } catch (e) {
-    addToast('Erro ao salvar plano: ' + getErrorMessage(e), 'error')
-  } finally {
-    resalePlanLoading.value = false
-  }
+async function expandUser(user: any) {
+  adminStore.selectUser(user)
+  await userStore.loadKeys()
 }
 
-async function runConfirm() {
-  if (!pendingAction) return
-  confirmLoading.value = true
-  try {
-    await pendingAction()
-    showConfirm.value = false
-  } catch (e) {
-    addToast('Erro: ' + getErrorMessage(e), 'error')
-  } finally {
-    confirmLoading.value = false
-  }
+function formatDate(iso: string | null) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('pt-BR')
 }
 
-// ── Lifecycle ────────────────────────────────────────────────────────────────
-
-onMounted(async () => {
-  await checkSession()
-  if (isAdmin.value) {
-    await Promise.all([loadUsers(), loadResalePlan()])
-  }
-})
+function daysLeft(iso: string | null) {
+  if (!iso) return '—'
+  const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)
+  return diff <= 0 ? 'expirado' : `${diff}d`
+}
 </script>
 
 <template>
-  <!-- LOGIN SCREEN -->
-  <div class="login-page" v-if="!authLoading && !isAdmin">
-    <div class="card login-card">
-      <div class="section-label">ADMIN LOGIN</div>
-      <div class="flex flex-col gap-3">
-        <input
-          class="input"
-          v-model="loginEmail"
-          type="email"
-          placeholder="E-mail"
-          @keyup.enter="adminLogin"
-        />
-        <input
-          class="input"
-          v-model="loginPassword"
-          type="password"
-          placeholder="Senha"
-          @keyup.enter="adminLogin"
-        />
-        <span class="error" v-if="loginError">{{ loginError }}</span>
+  <!-- ── ADMIN LOGIN ──────────────────────────────────────────── -->
+  <div class="admin-login-page" v-if="!authLoading && !isAdmin">
+    <div class="admin-login-wrap">
+      <div class="admin-login-brand">
+        <div class="admin-logo">◈</div>
+        <div>
+          <h1 class="admin-brand-title">DayZ Bot</h1>
+          <p class="admin-brand-sub">PAINEL DE CONTROLE // ACESSO RESTRITO</p>
+        </div>
       </div>
-      <button class="btn btn-primary" :disabled="loginLoading" @click="adminLogin">
-        <span class="spinner" v-if="loginLoading" />
-        <span v-else>ENTRAR</span>
-      </button>
+
+      <div class="admin-login-card">
+        <!-- Terminal header -->
+        <div class="terminal-header">
+          <span class="terminal-dots"> <span></span><span></span><span></span> </span>
+          <span class="terminal-title">AUTENTICAÇÃO ADMINISTRATIVA</span>
+        </div>
+
+        <div
+          v-if="loginError"
+          class="alert alert-error"
+          style="margin: var(--space-5); margin-bottom: 0"
+        >
+          <span>⚠</span> {{ loginError }}
+        </div>
+
+        <form @submit.prevent="adminLogin" class="admin-login-form">
+          <div class="form-group">
+            <label class="form-label">E-mail</label>
+            <input
+              v-model="loginEmail"
+              type="email"
+              class="form-input"
+              placeholder="admin@exemplo.com"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Senha</label>
+            <input
+              v-model="loginPassword"
+              type="password"
+              class="form-input"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-lg w-full" :disabled="loginLoading">
+            <span class="spinner" v-if="loginLoading" />
+            <span v-else>▶ ACESSAR PAINEL</span>
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 
-  <!-- LOADING -->
-  <div class="loading-page" v-else-if="authLoading">
-    <span class="spinner" />
+  <!-- ── LOADING ── -->
+  <div v-else-if="authLoading" class="loading-page">
+    <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem">
+      <span class="spinner" style="width: 32px; height: 32px" />
+      <p
+        style="
+          font-family: var(--font-ui);
+          font-size: 0.7rem;
+          text-transform: uppercase;
+          letter-spacing: 0.2em;
+          color: var(--text-muted);
+        "
+      >
+        VERIFICANDO CREDENCIAIS
+      </p>
+    </div>
   </div>
 
-  <!-- DASHBOARD -->
-  <template v-else>
-    <header class="header">
-      <div class="flex items-center justify-between">
-        <span class="section-label">ADMIN</span>
-        <button class="btn btn-ghost btn-sm" @click="logout">SAIR</button>
+  <!-- ── ADMIN DASHBOARD ──────────────────────────────────────── -->
+  <div class="admin-dashboard-page" v-else>
+    <header class="app-header">
+      <div class="container header-content">
+        <div class="logo">
+          <div class="logo-icon">◈</div>
+          <span>DayZ Bot</span>
+          <span class="admin-badge">ADMIN</span>
+        </div>
+        <button class="btn btn-ghost btn-sm" @click="logout">⏻ Sair</button>
       </div>
     </header>
 
-    <!-- PLANO DE REVENDA -->
-    <section class="resale-plan-section" v-if="!loadingResalePlan && resalePlan">
-      <div class="resale-plan-card">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="section-label" style="margin-bottom: var(--space-2)">
-              PLANO DE REVENDA ATIVO
-            </div>
-            <div class="resale-info">
-              <span class="resale-days">{{ resalePlan.duration_days }}<span>d</span></span>
-              <span class="resale-separator">·</span>
-              <span class="resale-price">{{ resalePlan.price }} créditos</span>
-              <span class="resale-separator">·</span>
-              <span :class="resalePlan.is_active ? 'badge badge-green' : 'badge badge-muted'">
-                {{ resalePlan.is_active ? 'Ativo' : 'Desativado' }}
-              </span>
-            </div>
-          </div>
-          <button class="btn btn-ghost btn-sm" @click="openResalePlanModal">EDITAR</button>
-        </div>
-      </div>
-    </section>
-
-    <main class="page-content">
-      <!-- STATS -->
-      <div class="flex gap-4 wrap" style="margin-bottom: var(--space-6)">
+    <main class="container admin-main">
+      <!-- ── Stats ── -->
+      <div class="stats-grid" style="margin-bottom: var(--space-6)">
         <div class="stat-card">
-          <div class="stat-label">Total</div>
-          <div class="stat-value">{{ stats.total }}</div>
+          <div class="stat-label">Operadores</div>
+          <div class="stat-value">{{ adminStore.stats.total }}</div>
         </div>
-        <div class="stat-card green">
-          <div class="stat-label">Ativos</div>
-          <div class="stat-value">{{ stats.active }}</div>
+        <div class="stat-card success">
+          <div class="stat-label">Licenças Ativas</div>
+          <div class="stat-value" style="color: var(--green)">{{ adminStore.stats.active }}</div>
         </div>
-        <div class="stat-card red">
+        <div class="stat-card warning">
           <div class="stat-label">Expirados</div>
-          <div class="stat-value">{{ stats.expired }}</div>
+          <div class="stat-value" style="color: var(--orange)">{{ adminStore.stats.expired }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Desativados</div>
-          <div class="stat-value">{{ stats.inactive }}</div>
+          <div class="stat-value" style="color: var(--text-muted)">
+            {{ adminStore.stats.inactive }}
+          </div>
         </div>
       </div>
 
-      <!-- TOP BAR -->
-      <div
-        class="flex items-center justify-between wrap gap-4"
-        style="margin-bottom: var(--space-4)"
-      >
-        <div class="section-label">USUÁRIOS</div>
-        <div class="flex gap-3">
-          <input
-            class="input search-input"
-            v-model="search"
-            placeholder="Buscar usuário ou e-mail…"
-          />
-          <button
-            class="btn btn-primary btn-sm"
-            :disabled="generatingKey"
-            @click="adminGenerateKey"
-          >
-            <span class="spinner" v-if="generatingKey" />
-            <span v-else>+ GERAR KEY</span>
-          </button>
-          <button class="btn btn-ghost btn-sm" @click="loadUsers">↺ ATUALIZAR</button>
+      <!-- ── Resale Plan Config ── -->
+      <div class="card" style="margin-bottom: var(--space-6)">
+        <div class="card-header">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="section-card-title">Plano de Revenda</h2>
+              <p class="section-card-sub">Configurações globais para revendedores</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" @click="showResaleModal = true">
+              ⚙ Configurar
+            </button>
+          </div>
+        </div>
+        <div class="card-body" v-if="adminStore.resalePlan">
+          <div class="resale-config-row">
+            <div class="rci">
+              <span class="rci-label">DURAÇÃO</span>
+              <span class="rci-value"
+                >{{ adminStore.resalePlan.duration_days }} <small>dias</small></span
+              >
+            </div>
+            <div class="rci-divider"></div>
+            <div class="rci">
+              <span class="rci-label">PREÇO</span>
+              <span class="rci-value"
+                >{{ adminStore.resalePlan.price }} <small>créditos</small></span
+              >
+            </div>
+            <div class="rci-divider"></div>
+            <div class="rci">
+              <span class="rci-label">STATUS</span>
+              <span
+                :class="[
+                  'badge',
+                  adminStore.resalePlan.is_active ? 'badge-success' : 'badge-neutral',
+                ]"
+              >
+                {{ adminStore.resalePlan.is_active ? 'Ativo' : 'Desativado' }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <!-- TABELA -->
-      <div class="table-wrap">
-        <div class="loading-row" v-if="loading"><span class="spinner" /> Carregando…</div>
-        <table v-else>
-          <thead>
-            <tr>
-              <th>Usuário</th>
-              <th>E-mail</th>
-              <th>Status</th>
-              <th>Licença até</th>
-              <th>Dias</th>
-              <th>Créditos</th>
-              <th>Último acesso</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="filteredUsers.length === 0">
-              <td colspan="8" class="empty-row">Nenhum usuário encontrado.</td>
-            </tr>
-            <tr v-for="u in filteredUsers" :key="u.id">
-              <td class="mono">{{ u.username }}</td>
-              <td>{{ u.email ?? '—' }}</td>
-              <td>
-                <span v-if="!u.is_active" class="badge badge-muted">Inativo</span>
-                <span v-else-if="isLicenseActive(u)" class="badge badge-green">Ativo</span>
-                <span v-else class="badge badge-red">Expirado</span>
-              </td>
-              <td class="mono">{{ formatDate(u.software_access_until) }}</td>
-              <td class="mono">{{ daysLeft(u.software_access_until) }}</td>
-              <td class="mono">{{ u.credits }}</td>
-              <td>{{ formatDate(u.last_seen) }}</td>
-              <td>
-                <div class="flex gap-2">
-                  <button class="btn btn-ghost btn-sm" @click="openEdit(u)">EDITAR</button>
-                  <button class="btn btn-ghost btn-sm" @click="openCreditsModal(u)">
-                    CRÉDITOS
-                  </button>
-                  <button
-                    class="btn btn-ghost btn-sm"
-                    @click="confirmForceLogout(u)"
-                    :disabled="!u.active_token"
-                  >
-                    LOGOUT
-                  </button>
-                  <button class="btn btn-danger btn-sm" @click="confirmDelete(u)">✕</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- ── Users Table ── -->
+      <div class="card">
+        <div class="card-header">
+          <div class="flex items-center justify-between" style="gap: var(--space-4)">
+            <h2 class="section-card-title">Operadores Registrados</h2>
+            <div class="flex gap-3">
+              <input
+                v-model="adminStore.searchQuery"
+                type="text"
+                class="form-input"
+                placeholder="Buscar operador ou e-mail..."
+                style="width: 260px"
+              />
+              <button
+                class="btn btn-secondary btn-sm"
+                @click="adminStore.loadUsers"
+                :disabled="adminStore.loading.users"
+              >
+                <span class="spinner" v-if="adminStore.loading.users" />
+                <span v-else>↻ Atualizar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-body" style="padding: 0">
+          <div v-if="adminStore.loading.users" class="empty-state">
+            <span class="spinner" />
+            <p>Carregando operadores...</p>
+          </div>
+
+          <table v-else>
+            <thead>
+              <tr>
+                <th>Operador</th>
+                <th>E-mail</th>
+                <th>Status</th>
+                <th>Licença</th>
+                <th>Dias</th>
+                <th>Créditos</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="adminStore.filteredUsers.length === 0">
+                <td colspan="7" class="empty-state" style="padding: 3rem">
+                  Nenhum operador encontrado.
+                </td>
+              </tr>
+
+              <template v-for="user in adminStore.filteredUsers" :key="user.id">
+                <tr class="user-row" @click="expandUser(user)">
+                  <td>
+                    <span class="mono" style="font-weight: 600; color: var(--text-primary)">
+                      {{ user.username }}
+                    </span>
+                  </td>
+                  <td style="color: var(--text-muted)">{{ user.email || '—' }}</td>
+                  <td>
+                    <span v-if="!user.is_active" class="badge badge-neutral">Inativo</span>
+                    <span v-else-if="adminStore.isLicenseActive(user)" class="badge badge-success"
+                      >Ativo</span
+                    >
+                    <span v-else class="badge badge-warning">Expirado</span>
+                  </td>
+                  <td class="mono" style="font-size: 0.82rem">
+                    {{ formatDate(user.software_access_until) }}
+                  </td>
+                  <td class="mono" style="font-size: 0.82rem">
+                    {{ daysLeft(user.software_access_until) }}
+                  </td>
+                  <td class="mono" style="font-size: 0.9rem; color: var(--amber)">
+                    {{ user.credits }}
+                  </td>
+                  <td>
+                    <div class="flex gap-2" @click.stop>
+                      <button class="btn btn-ghost btn-sm" @click="openEditModal(user)">
+                        Editar
+                      </button>
+                      <button class="btn btn-ghost btn-sm" @click="openCreditsModal(user)">
+                        Créditos
+                      </button>
+                      <button
+                        class="btn btn-ghost btn-sm"
+                        @click="openLogoutModal(user)"
+                        :disabled="!user.active_token"
+                      >
+                        Logout
+                      </button>
+                      <button class="btn btn-danger btn-sm" @click="openDeleteModal(user)">
+                        ✕
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Expanded user detail -->
+                <tr v-if="adminStore.selectedUser?.id === user.id && adminStore.showUserPanel">
+                  <td colspan="7" class="user-details">
+                    <div class="user-details-content">
+                      <div
+                        class="flex items-center justify-between"
+                        style="margin-bottom: var(--space-4)"
+                      >
+                        <div class="user-detail-header">
+                          <span class="mono" style="color: var(--amber)">{{ user.username }}</span>
+                          <span class="detail-sub">— HISTÓRICO DE KEYS</span>
+                        </div>
+                        <button class="btn btn-ghost btn-sm" @click="adminStore.closeUserPanel">
+                          Fechar ✕
+                        </button>
+                      </div>
+
+                      <div
+                        v-if="userStore.keys.length === 0"
+                        class="empty-state"
+                        style="padding: var(--space-8)"
+                      >
+                        <p>Nenhuma key gerada por este operador.</p>
+                      </div>
+                      <table v-else class="table-sm">
+                        <thead>
+                          <tr>
+                            <th>Key</th>
+                            <th>Criada em</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="key in userStore.keys" :key="key.id">
+                            <td class="mono" style="font-size: 0.82rem; color: var(--amber)">
+                              {{ key.key }}
+                            </td>
+                            <td class="mono" style="font-size: 0.82rem">
+                              {{ formatDate(key.created_at) }}
+                            </td>
+                            <td>
+                              <span v-if="key.reverted" class="badge badge-neutral">Revertida</span>
+                              <span v-else-if="key.used" class="badge badge-warning">Usada</span>
+                              <span v-else class="badge badge-success">Disponível</span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
       </div>
     </main>
 
-    <!-- MODAL: KEY GERADA -->
-    <div class="overlay" v-if="showKeyModal" @click.self="showKeyModal = false">
+    <!-- ── MODAL: Configurar Plano ── -->
+    <div v-if="showResaleModal" class="modal-overlay" @click.self="showResaleModal = false">
       <div class="modal">
         <div class="modal-header">
-          <span class="modal-title">Key gerada</span>
-          <button class="btn btn-ghost btn-sm" @click="showKeyModal = false">✕</button>
+          <h3 class="modal-title">Configurar Plano de Revenda</h3>
         </div>
-        <div class="flex flex-col gap-3">
-          <span style="color: var(--muted); font-size: var(--text-sm)"
-            >30 dias · copie antes de fechar</span
-          >
-          <div class="key-display">
-            <span class="mono">{{ lastGeneratedKey }}</span>
-            <button class="btn btn-ghost btn-sm" @click="copyGeneratedKey">⎘ COPIAR</button>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-primary" @click="showKeyModal = false">FECHAR</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- MODAL: AJUSTAR CRÉDITOS -->
-    <div class="overlay" v-if="showCreditsModal" @click.self="showCreditsModal = false">
-      <div class="modal">
-        <div class="modal-header">
-          <span class="modal-title">Ajustar créditos — {{ creditsUsername }}</span>
-          <button class="btn btn-ghost btn-sm" @click="showCreditsModal = false">✕</button>
-        </div>
-        <div class="flex flex-col gap-4">
-          <div class="field">
-            <label>SALDO ATUAL</label>
-            <div class="credits-display">{{ creditsCurrentAmount }} créditos</div>
-          </div>
-          <div class="field">
-            <label>OPERAÇÃO</label>
-            <div class="flex gap-3">
-              <label class="radio-label">
-                <input type="radio" v-model="creditsOperation" value="add" />
-                Adicionar
-              </label>
-              <label class="radio-label">
-                <input type="radio" v-model="creditsOperation" value="remove" />
-                Remover
-              </label>
-            </div>
-          </div>
-          <div class="field">
-            <label>VALOR</label>
-            <input
-              class="input"
-              v-model="creditsAmount"
-              type="number"
-              min="0.01"
-              step="0.01"
-              placeholder="Quantidade de créditos"
-              @keyup.enter="saveCredits"
-            />
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" @click="showCreditsModal = false">Cancelar</button>
-          <button class="btn btn-primary" :disabled="creditsLoading" @click="saveCredits">
-            <span class="spinner" v-if="creditsLoading" />
-            <span v-else>{{ creditsOperation === 'add' ? 'Adicionar' : 'Remover' }}</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- MODAL: EDITAR -->
-    <div class="overlay" v-if="showEdit" @click.self="showEdit = false">
-      <div class="modal">
-        <div class="modal-header">
-          <span class="modal-title">Editar — {{ editUsername }}</span>
-          <button class="btn btn-ghost btn-sm" @click="showEdit = false">✕</button>
-        </div>
-        <div class="flex flex-col gap-4">
-          <div class="field">
-            <label>NOVA SENHA <span class="optional">OPCIONAL</span></label>
-            <input
-              class="input"
-              v-model="editPassword"
-              type="password"
-              placeholder="Deixe vazio para não alterar"
-            />
-          </div>
-          <div class="field">
-            <label>ESTENDER LICENÇA <span class="optional">OPCIONAL</span></label>
-            <select class="input" v-model="editLicenseDays">
-              <option value="">Não alterar</option>
-              <option :value="7">+ 7 dias a partir de hoje</option>
-              <option :value="15">+ 15 dias a partir de hoje</option>
-              <option :value="30">+ 30 dias a partir de hoje</option>
-              <option value="date">Data específica</option>
-            </select>
-          </div>
-          <div class="field" v-if="editLicenseDays === 'date'">
-            <label>DATA DE EXPIRAÇÃO</label>
-            <input class="input" v-model="editCustomDate" type="date" />
-          </div>
-          <div class="field">
-            <label><input type="checkbox" v-model="editIsActive" /> Conta ativa</label>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-ghost" @click="showEdit = false">Cancelar</button>
-          <button class="btn btn-primary" :disabled="editLoading" @click="saveEdit">
-            <span class="spinner" v-if="editLoading" />
-            <span v-else>Salvar</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- MODAL: EDITAR PLANO DE REVENDA -->
-    <div class="overlay" v-if="showResalePlanModal" @click.self="showResalePlanModal = false">
-      <div class="modal">
-        <div class="modal-header">
-          <span class="modal-title">Configurar Plano de Revenda</span>
-          <button class="btn btn-ghost btn-sm" @click="showResalePlanModal = false">✕</button>
-        </div>
-        <div class="flex flex-col gap-4">
-          <div class="field">
-            <label>DURAÇÃO (DIAS)</label>
-            <select class="input" v-model.number="resalePlanDays">
+        <div class="modal-body space-y-4">
+          <div class="form-group">
+            <label class="form-label">Duração (dias)</label>
+            <select v-model="resaleForm.days" class="form-input form-select">
               <option :value="7">7 dias</option>
               <option :value="15">15 dias</option>
               <option :value="30">30 dias</option>
             </select>
           </div>
-          <div class="field">
-            <label>PREÇO (CRÉDITOS)</label>
+          <div class="form-group">
+            <label class="form-label">Preço (créditos)</label>
             <input
-              class="input"
-              v-model="resalePlanPrice"
+              v-model="resaleForm.price"
               type="number"
+              class="form-input"
               min="0"
               step="0.01"
-              placeholder="Preço em créditos"
-              @keyup.enter="saveResalePlan"
             />
-            <span class="field-hint">
-              Quanto o usuário paga para gerar uma key de {{ resalePlanDays }} dias
-            </span>
           </div>
-          <div class="field">
-            <label>
-              <input type="checkbox" v-model="resalePlanActive" />
-              Plano ativo (usuários podem gerar keys)
+          <div class="form-group">
+            <label class="flex items-center gap-2" style="cursor: pointer">
+              <input v-model="resaleForm.is_active" type="checkbox" class="form-checkbox" />
+              <span style="font-size: 0.9rem; color: var(--text-secondary)">
+                Plano ativo (usuários podem gerar keys)
+              </span>
             </label>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-ghost" @click="showResalePlanModal = false">Cancelar</button>
-          <button class="btn btn-primary" :disabled="resalePlanLoading" @click="saveResalePlan">
-            <span class="spinner" v-if="resalePlanLoading" />
+          <button class="btn btn-ghost" @click="showResaleModal = false">Cancelar</button>
+          <button
+            class="btn btn-primary"
+            @click="saveResalePlan"
+            :disabled="adminStore.loading.saveResalePlan"
+          >
+            <span class="spinner" v-if="adminStore.loading.saveResalePlan" />
             <span v-else>Salvar</span>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- MODAL: CONFIRMAÇÃO -->
-    <div class="overlay" v-if="showConfirm" @click.self="showConfirm = false">
+    <!-- ── MODAL: Ajustar Créditos ── -->
+    <div v-if="showCreditsModal" class="modal-overlay" @click.self="showCreditsModal = false">
       <div class="modal">
         <div class="modal-header">
-          <span class="modal-title">{{ confirmTitle }}</span>
+          <h3 class="modal-title">Ajustar Créditos</h3>
         </div>
-        <div class="flex flex-col gap-2">
-          <span>{{ confirmMessage }}</span>
-          <span style="color: var(--muted); font-size: var(--text-sm)">{{ confirmSub }}</span>
+        <div class="modal-body space-y-4">
+          <div class="credits-user-row">
+            <span class="mono" style="color: var(--amber)">{{ creditsForm.username }}</span>
+            <span class="cred-current-badge">
+              <span class="ccb-label">SALDO</span>
+              <span class="ccb-value">{{ creditsForm.current }}</span>
+            </span>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Operação</label>
+            <div class="op-toggle">
+              <label class="op-option" :class="{ active: creditsForm.operation === 'add' }">
+                <input
+                  v-model="creditsForm.operation"
+                  type="radio"
+                  value="add"
+                  style="display: none"
+                />
+                + Adicionar
+              </label>
+              <label class="op-option" :class="{ active: creditsForm.operation === 'remove' }">
+                <input
+                  v-model="creditsForm.operation"
+                  type="radio"
+                  value="remove"
+                  style="display: none"
+                />
+                − Remover
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Quantidade</label>
+            <input
+              v-model="creditsForm.amount"
+              type="number"
+              class="form-input"
+              min="0.01"
+              step="0.01"
+              placeholder="0"
+            />
+          </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-ghost" @click="showConfirm = false">Cancelar</button>
+          <button class="btn btn-ghost" @click="showCreditsModal = false">Cancelar</button>
           <button
-            :class="confirmDanger ? 'btn btn-danger' : 'btn btn-ghost'"
-            :disabled="confirmLoading"
-            @click="runConfirm"
+            class="btn btn-primary"
+            @click="saveCredits"
+            :disabled="adminStore.loading.adjustCredits"
           >
-            <span class="spinner" v-if="confirmLoading" />
-            <span v-else>Confirmar</span>
+            <span class="spinner" v-if="adminStore.loading.adjustCredits" />
+            <span v-else>{{ creditsForm.operation === 'add' ? 'Adicionar' : 'Remover' }}</span>
           </button>
         </div>
       </div>
     </div>
-  </template>
 
-  <!-- TOASTS -->
-  <div class="toast-container">
-    <div v-for="t in toasts" :key="t.id" :class="`toast toast-${t.type}`">
-      <span>{{ t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : 'ℹ' }}</span>
-      {{ t.message }}
+    <!-- ── MODAL: Editar Usuário ── -->
+    <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Editar Operador</h3>
+        </div>
+        <div class="modal-body space-y-4">
+          <div
+            class="edit-user-tag mono"
+            style="color: var(--amber); margin-bottom: var(--space-2)"
+          >
+            {{ editForm.username }}
+          </div>
+          <div class="form-group">
+            <label class="form-label">Nova Senha <span class="optional">opcional</span></label>
+            <input
+              v-model="editForm.password"
+              type="password"
+              class="form-input"
+              placeholder="Deixe vazio para não alterar"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label"
+              >Estender Licença <span class="optional">opcional</span></label
+            >
+            <select v-model="editForm.licenseDays" class="form-input form-select">
+              <option value="">Não alterar</option>
+              <option :value="7">+ 7 dias</option>
+              <option :value="15">+ 15 dias</option>
+              <option :value="30">+ 30 dias</option>
+              <option value="date">Data específica</option>
+            </select>
+          </div>
+          <div class="form-group" v-if="editForm.licenseDays === 'date'">
+            <label class="form-label">Data de Expiração</label>
+            <input v-model="editForm.customDate" type="date" class="form-input" />
+          </div>
+          <div class="form-group">
+            <label class="flex items-center gap-2" style="cursor: pointer">
+              <input v-model="editForm.isActive" type="checkbox" class="form-checkbox" />
+              <span style="font-size: 0.9rem; color: var(--text-secondary)">Conta ativa</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showEditModal = false">Cancelar</button>
+          <button class="btn btn-primary" @click="saveEdit" :disabled="adminStore.loading.saveUser">
+            <span class="spinner" v-if="adminStore.loading.saveUser" />
+            <span v-else>Salvar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL: Confirmar Delete ── -->
+    <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title" style="color: var(--red)">⚠ Deletar Operador</h3>
+        </div>
+        <div class="modal-body">
+          <p style="color: var(--text-secondary)">
+            Tem certeza que deseja deletar
+            <strong class="mono" style="color: var(--red)">{{
+              adminStore.selectedUser?.username
+            }}</strong
+            >?
+          </p>
+          <p class="form-hint" style="margin-top: var(--space-2)">
+            Esta ação é irreversível. Todas as keys e dados serão excluídos permanentemente.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showDeleteModal = false">Cancelar</button>
+          <button class="btn btn-danger" @click="confirmDelete">Deletar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── MODAL: Forçar Logout ── -->
+    <div v-if="showLogoutModal" class="modal-overlay" @click.self="showLogoutModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Forçar Logout</h3>
+        </div>
+        <div class="modal-body">
+          <p style="color: var(--text-secondary)">
+            Desconectar
+            <strong class="mono" style="color: var(--amber)">{{
+              adminStore.selectedUser?.username
+            }}</strong
+            >?
+          </p>
+          <p class="form-hint" style="margin-top: var(--space-2)">
+            O usuário precisará fazer login novamente no aplicativo.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showLogoutModal = false">Cancelar</button>
+          <button class="btn btn-primary" @click="confirmLogout">Desconectar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TOASTS ── -->
+    <div class="toast-container">
+      <div
+        v-for="toast in toastStore.toasts"
+        :key="toast.id"
+        :class="['toast', `toast-${toast.type}`]"
+      >
+        <span>{{ toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : '◎' }}</span>
+        {{ toast.message }}
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.login-page {
+/* ── Admin Login Page ── */
+.admin-login-page,
+.loading-page,
+.admin-dashboard-page {
+  background-color: #090f0b;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
   min-height: 100vh;
+}
+
+.admin-login-page {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
-}
-
-.login-card {
-  width: 100%;
-  max-width: 360px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
-  padding: var(--space-8);
-}
-
-.loading-page {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.search-input {
-  width: 260px;
-}
-
-.loading-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-6) var(--space-5);
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-family: var(--font-mono);
-}
-
-.empty-row {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  text-align: center;
-  padding: var(--space-8);
-}
-
-.key-display {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-3) var(--space-4);
-}
-
-.credits-display {
-  font-family: var(--font-mono);
-  font-size: var(--text-lg);
-  color: var(--primary);
-  padding: var(--space-3);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-}
-
-.radio-label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  cursor: pointer;
-  font-size: var(--text-sm);
-}
-
-.radio-label input[type='radio'] {
-  cursor: pointer;
-}
-
-.resale-plan-section {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   padding: var(--space-6);
-  margin: var(--space-6) var(--space-6) 0;
 }
 
-.resale-plan-card {
+.admin-login-wrap {
+  width: 100%;
+  max-width: 440px;
   display: flex;
   flex-direction: column;
+  gap: var(--space-8);
+}
+
+.admin-login-brand {
+  display: flex;
+  align-items: center;
   gap: var(--space-4);
 }
 
-.resale-info {
+.admin-logo {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--amber), var(--green));
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  color: var(--bg-void);
+  flex-shrink: 0;
+}
+
+.admin-brand-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.admin-brand-sub {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+}
+
+.admin-login-card {
+  background: var(--bg-void);
+  border: 1px solid var(--wire-active);
+  border-top: 2px solid var(--amber);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg), var(--amber-glow);
+}
+
+.admin-login-form {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Terminal header decoration */
+.terminal-header {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  padding: 0.55rem 1rem;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--wire);
+}
+
+.terminal-dots {
+  display: flex;
+  gap: 5px;
+}
+
+.terminal-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--wire-active);
+}
+
+.terminal-dots span:first-child {
+  background: var(--red);
+}
+.terminal-dots span:nth-child(2) {
+  background: var(--orange);
+}
+.terminal-dots span:last-child {
+  background: var(--green);
+}
+
+.terminal-title {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+/* ── Admin Dashboard ── */
+.admin-badge {
+  font-family: var(--font-ui);
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--bg-void);
+  background: var(--amber);
+  padding: 0.15rem 0.5rem;
+  border-radius: 1px;
+}
+
+.admin-main {
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-8);
+}
+
+/* Section card title */
+.section-card-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.section-card-sub {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* Resale config row */
+.resale-config-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
   flex-wrap: wrap;
 }
 
-.resale-days {
-  font-size: 1.5rem;
+.rci {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-6) 0 0;
+}
+
+.rci-label {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
   font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.rci-value {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.rci-value small {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 3px;
+}
+
+.rci-divider {
+  width: 1px;
+  height: 40px;
+  background: var(--wire);
+  margin-right: var(--space-6);
+}
+
+/* User detail header */
+.user-detail-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   font-family: var(--font-mono);
-  color: var(--primary);
+  font-size: 0.9rem;
 }
 
-.resale-days span {
-  font-size: 1rem;
-  color: var(--muted);
+.detail-sub {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
 }
 
-.resale-price {
-  font-size: var(--text-base);
-  font-family: var(--font-mono);
-  color: var(--fg);
+/* Credits modal */
+.credits-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--wire);
+  margin-bottom: var(--space-2);
 }
 
-.resale-separator {
-  color: var(--muted);
+.cred-current-badge {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  background: var(--amber-dim);
+  border: 1px solid rgba(200, 164, 52, 0.2);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
 }
 
-.field-hint {
-  display: block;
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--muted);
+.ccb-label {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: rgba(200, 164, 52, 0.6);
+}
+
+.ccb-value {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--amber);
+}
+
+/* Operation toggle */
+.op-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--wire-active);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.op-option {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-align: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: var(--bg-void);
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.op-option:first-child {
+  border-right: 1px solid var(--wire-active);
+}
+
+.op-option.active {
+  background: var(--amber-dim);
+  color: var(--amber);
+}
+
+/* Edit user tag */
+.edit-user-tag {
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--wire);
 }
 </style>

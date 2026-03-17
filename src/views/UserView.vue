@@ -1,667 +1,1036 @@
+<!-- UserView.vue -->
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { useUserStore } from '@/stores/user'
+import { useToastStore } from '@/stores/toast'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const userStore = useUserStore()
+const toastStore = useToastStore()
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+const activeTab = ref<'license' | 'resale' | 'credits'>('license')
 
-// ── Tipos ────────────────────────────────────────────────────────────────────
+const showRevertModal = ref(false)
+const showBuyModal = ref(false)
+const showGeneratedKeyModal = ref(false)
+const selectedKey = ref<any>(null)
+const selectedPlan = ref<any>(null)
+const generatedKey = ref('')
 
-interface UserProfile {
-  id: string
-  username: string
-  email: string | null
-  credits: number
-  software_access_until: string | null
-}
-
-interface Key {
-  id: string
-  key: string
-  duration_days: number
-  price: number
-  created_at: string
-  used: boolean
-  used_at: string | null
-  reverted: boolean
-  reverted_at: string | null
-}
-
-interface Toast {
-  id: number
-  message: string
-  type: 'success' | 'error' | 'info'
-}
-
-interface RpcResponse {
-  status: string
-  key?: string
-  keys?: Key[]
-  software_access_until?: string
-  days_ago?: number
-  id?: string
-  username?: string
-  email?: string | null
-  credits?: number
-  days?: number
-  price?: number
-}
-
-interface SupabaseError {
-  message: string
-}
-
-interface ResalePlan {
-  days: number
-  price: number
-}
-
-// ── Estado ───────────────────────────────────────────────────────────────────
-
-const profile = ref<UserProfile | null>(null)
-const keys = ref<Key[]>([])
-const loadingProfile = ref(true)
-const loadingKeys = ref(true)
-const loadingResalePlan = ref(true)
-const toasts = ref<Toast[]>([])
-let toastId = 0
-
-const generatingKey = ref(false)
-const revertingKeyId = ref<string | null>(null)
-const buyingDays = ref<number | null>(null)
-
-const showRevertConfirm = ref(false)
-const revertTarget = ref<Key | null>(null)
-
-const showBuyConfirm = ref(false)
-const buyTarget = ref<number | null>(null)
-
-// Plano de revenda dinâmico
-const resalePlan = ref<ResalePlan | null>(null)
-
-// ── Computed ─────────────────────────────────────────────────────────────────
-
-const token = computed(() => localStorage.getItem('session_token') ?? '')
-
-const accessUntil = computed(() => profile.value?.software_access_until ?? null)
-
-const daysLeft = computed(() => {
-  if (!accessUntil.value) return 0
-  return Math.max(0, Math.ceil((new Date(accessUntil.value).getTime() - Date.now()) / 86400000))
+const canGenerateKey = computed(() => {
+  if (!userStore.resalePlan?.is_active) return false
+  return (userStore.profile?.credits || 0) >= (userStore.resalePlan?.price || 0)
 })
 
-const isExpired = computed(() => daysLeft.value === 0)
+onMounted(async () => {
+  if (!authStore.token) {
+    router.push('/')
+    return
+  }
+  await Promise.all([userStore.loadProfile(), userStore.loadKeys(), userStore.loadResalePlan()])
+})
 
-const keyStats = computed(() => ({
-  total: keys.value.length,
-  used: keys.value.filter((k) => k.used).length,
-  available: keys.value.filter((k) => !k.used && !k.reverted).length,
-  reverted: keys.value.filter((k) => k.reverted).length,
-}))
-
-// Planos para uso próprio (comprar dias)
-const plans = [
-  { days: 7, price: 10 },
-  { days: 15, price: 20 },
-  { days: 30, price: 30 },
-]
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
-}
-
-function addToast(message: string, type: Toast['type'] = 'info') {
-  const id = ++toastId
-  toasts.value.push({ id, message, type })
-  setTimeout(() => {
-    toasts.value = toasts.value.filter((t) => t.id !== id)
-  }, 3200)
-}
-
-function isSupabaseError(value: unknown): value is SupabaseError {
-  return typeof value === 'object' && value !== null && 'message' in value
-}
-
-function getErrorMessage(e: unknown): string {
-  if (isSupabaseError(e)) return e.message
-  if (e instanceof Error) return e.message
-  return 'Erro desconhecido.'
-}
-
-function keyStatusLabel(k: Key): string {
-  if (k.reverted) return 'revertida'
-  if (k.used) return 'usada'
-  return 'disponível'
-}
-
-function keyStatusBadge(k: Key): string {
-  if (k.reverted) return 'badge badge-muted'
-  if (k.used) return 'badge badge-amber'
-  return 'badge badge-green'
-}
-
-// ── API ──────────────────────────────────────────────────────────────────────
-
-async function rpc(fn: string, body: Record<string, unknown>): Promise<RpcResponse> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json() as Promise<RpcResponse>
-}
-
-// ── Carregamento ──────────────────────────────────────────────────────────────
-
-async function loadProfile() {
-  loadingProfile.value = true
-  try {
-    const result = await rpc('get_user_profile', { p_token: token.value })
-    if (result.status !== 'ok') {
-      router.push('/')
-      return
-    }
-    profile.value = {
-      id: result.id!,
-      username: result.username!,
-      email: result.email ?? null,
-      credits: result.credits!,
-      software_access_until: result.software_access_until ?? null,
-    }
-  } catch (e) {
-    addToast('Erro ao carregar perfil: ' + getErrorMessage(e), 'error')
-  } finally {
-    loadingProfile.value = false
+async function handleGenerateKey() {
+  const result = await userStore.generateKey()
+  if (result.success) {
+    generatedKey.value = result.key || ''
+    showGeneratedKeyModal.value = true
+    toastStore.success('Key gerada com sucesso!')
+  } else {
+    toastStore.error(result.error || 'Erro ao gerar key')
   }
 }
 
-async function loadKeys() {
-  loadingKeys.value = true
-  try {
-    const result = await rpc('get_user_keys', { p_token: token.value })
-    if (result.status === 'ok') {
-      keys.value = result.keys ?? []
-    }
-  } catch (e) {
-    addToast('Erro ao carregar keys: ' + getErrorMessage(e), 'error')
-  } finally {
-    loadingKeys.value = false
+function confirmRevert(key: any) {
+  selectedKey.value = key
+  showRevertModal.value = true
+}
+
+async function handleRevert() {
+  if (!selectedKey.value) return
+  const result = await userStore.revertKey(selectedKey.value.id)
+  if (result.success) {
+    toastStore.success('Key revertida. Créditos devolvidos.')
+    showRevertModal.value = false
+  } else {
+    toastStore.error(result.error || 'Erro ao reverter key')
   }
 }
 
-async function loadResalePlan() {
-  loadingResalePlan.value = true
-  try {
-    const result = await rpc('get_active_resale_plan', {})
-    if (result.status === 'ok' && result.days && result.price !== undefined) {
-      resalePlan.value = {
-        days: result.days,
-        price: result.price,
-      }
-    } else {
-      // Fallback para valores padrão se não houver plano configurado
-      resalePlan.value = { days: 30, price: 20 }
-    }
-  } catch (e) {
-    addToast('Erro ao carregar plano de revenda: ' + getErrorMessage(e), 'error')
-    // Fallback
-    resalePlan.value = { days: 30, price: 20 }
-  } finally {
-    loadingResalePlan.value = false
-  }
+function confirmBuy(plan: any) {
+  selectedPlan.value = plan
+  showBuyModal.value = true
 }
 
-// ── Ações ─────────────────────────────────────────────────────────────────────
-
-async function generateKey() {
-  generatingKey.value = true
-  try {
-    const result = await rpc('generate_key', { p_token: token.value })
-    if (result.status === 'ok') {
-      addToast('Key gerada com sucesso!', 'success')
-      await Promise.all([loadProfile(), loadKeys()])
-      return
-    }
-    const messages: Record<string, string> = {
-      session_invalid: 'Sessão inválida. Faça login novamente.',
-      inactive: 'Conta desativada.',
-      insufficient_credits: 'Créditos insuficientes.',
-      no_resale_plan: 'Plano de revenda não configurado.',
-    }
-    addToast(messages[result.status] ?? `Erro: ${result.status}`, 'error')
-  } catch (e) {
-    addToast('Erro: ' + getErrorMessage(e), 'error')
-  } finally {
-    generatingKey.value = false
-  }
-}
-
-function openRevertConfirm(k: Key) {
-  revertTarget.value = k
-  showRevertConfirm.value = true
-}
-
-async function revertKey() {
-  if (!revertTarget.value) return
-  revertingKeyId.value = revertTarget.value.id
-  showRevertConfirm.value = false
-  try {
-    const result = await rpc('revert_key', {
-      p_token: token.value,
-      p_key_id: revertTarget.value.id,
-    })
-    if (result.status === 'ok') {
-      addToast('Key revertida. Créditos devolvidos.', 'success')
-      await Promise.all([loadProfile(), loadKeys()])
-      return
-    }
-    const messages: Record<string, string> = {
-      session_invalid: 'Sessão inválida.',
-      key_not_found: 'Key não encontrada.',
-      forbidden: 'Você não tem permissão.',
-      key_already_used: 'Key já foi utilizada.',
-      key_already_reverted: 'Key já foi revertida.',
-    }
-    addToast(messages[result.status] ?? `Erro: ${result.status}`, 'error')
-  } catch (e) {
-    addToast('Erro: ' + getErrorMessage(e), 'error')
-  } finally {
-    revertingKeyId.value = null
-    revertTarget.value = null
-  }
-}
-
-function openBuyConfirm(days: number) {
-  buyTarget.value = days
-  showBuyConfirm.value = true
-}
-
-async function buyDays() {
-  if (!buyTarget.value) return
-  buyingDays.value = buyTarget.value
-  showBuyConfirm.value = false
-  try {
-    const result = await rpc('buy_days', {
-      p_token: token.value,
-      p_duration_days: buyTarget.value,
-    })
-    if (result.status === 'ok') {
-      const msg =
-        result.days_ago === 0
-          ? `Licença ativada por ${buyTarget.value} dias!`
-          : `Licença estendida em ${buyTarget.value} dias!`
-      addToast(msg, 'success')
-      await loadProfile()
-      return
-    }
-    const messages: Record<string, string> = {
-      session_invalid: 'Sessão inválida.',
-      plan_not_found: 'Plano não encontrado.',
-      insufficient_credits: 'Créditos insuficientes.',
-    }
-    addToast(messages[result.status] ?? `Erro: ${result.status}`, 'error')
-  } catch (e) {
-    addToast('Erro: ' + getErrorMessage(e), 'error')
-  } finally {
-    buyingDays.value = null
-    buyTarget.value = null
+async function handleBuy() {
+  if (!selectedPlan.value) return
+  const result = await userStore.buyDays(selectedPlan.value.days)
+  if (result.success) {
+    toastStore.success(result.message || 'Dias adicionados!')
+    showBuyModal.value = false
+  } else {
+    toastStore.error(result.error || 'Erro ao comprar dias')
   }
 }
 
 function copyKey(key: string) {
-  navigator.clipboard.writeText(key)
-  addToast('Key copiada!', 'info')
+  userStore.copyKey(key)
+  toastStore.info('Key copiada!')
 }
 
-function logout() {
-  localStorage.removeItem('session_token')
-  router.push('/')
+function keyStatusBadge(key: any) {
+  if (key.reverted) return 'badge-neutral'
+  if (key.used) return 'badge-warning'
+  return 'badge-success'
 }
 
-// ── Lifecycle ────────────────────────────────────────────────────────────────
+function keyStatusLabel(key: any) {
+  if (key.reverted) return 'Revertida'
+  if (key.used) return 'Usada'
+  return 'Disponível'
+}
 
-onMounted(async () => {
-  if (!token.value) {
-    router.push('/')
-    return
-  }
-  await Promise.all([loadProfile(), loadKeys(), loadResalePlan()])
-})
+function formatDate(date: string | null) {
+  if (!date) return '—'
+  return new Date(date).toLocaleDateString('pt-BR')
+}
 </script>
 
 <template>
-  <!-- HEADER -->
-  <header class="app-header">
-    <div class="logo">
-      <div class="logo-icon">⬡</div>
-      <span>DAYZ<span>BOT</span></span>
-    </div>
-    <div class="header-right" v-if="profile">
-      <div class="header-pill">
-        <span class="pill-label">CRÉDITOS</span>
-        <span class="pill-value text-amber">{{ profile.credits }}</span>
-      </div>
-      <div class="header-pill">
-        <span class="pill-label">LICENÇA</span>
-        <span :class="isExpired ? 'pill-value text-red' : 'pill-value text-green'">
-          {{ isExpired ? 'EXPIRADA' : `${daysLeft}d` }}
-        </span>
-      </div>
-      <div class="header-pill">
-        <span class="pill-label">USUÁRIO</span>
-        <span class="pill-value">{{ profile.username }}</span>
-      </div>
-      <button class="btn btn-ghost btn-sm" @click="logout">SAIR</button>
-    </div>
-  </header>
+  <div class="page-wrapper" v-if="userStore.profile">
+    <!-- ── HEADER ── -->
+    <header class="app-header">
+      <div class="container header-content">
+        <div class="logo">
+          <img src="/src/assets/logo.png" class="logo-icon"></img>
+          <span>DayZ Bot</span>
+        </div>
 
-  <main class="page-content" v-if="!loadingProfile && !loadingResalePlan">
-    <!-- STATS DE KEYS -->
-    <div class="flex gap-4 wrap" style="margin-bottom: var(--space-6)">
-      <div class="stat-card">
-        <div class="stat-label">Keys Geradas</div>
-        <div class="stat-value">{{ keyStats.total }}</div>
+        <nav class="header-nav">
+          <div class="header-pill">
+            <span class="pill-label">Créditos</span>
+            <span class="pill-value" style="color: var(--amber)">
+              {{ userStore.profile.credits }}
+            </span>
+          </div>
+          <div class="header-pill">
+            <span class="pill-label">Licença</span>
+            <span
+              class="pill-value"
+              :style="{ color: userStore.isExpired ? 'var(--red)' : 'var(--green)' }"
+            >
+              {{ userStore.isExpired ? 'EXPIRADA' : `${userStore.daysLeft}d` }}
+            </span>
+          </div>
+          <div class="header-pill">
+            <span class="pill-label">Soldado</span>
+            <span class="pill-value mono">{{ userStore.profile.username }}</span>
+          </div>
+          <button class="btn btn-ghost btn-sm" @click="authStore.logout">⏻ Sair</button>
+        </nav>
       </div>
-      <div class="stat-card green">
-        <div class="stat-label">Disponíveis</div>
-        <div class="stat-value">{{ keyStats.available }}</div>
-      </div>
-      <div class="stat-card amber">
-        <div class="stat-label">Usadas</div>
-        <div class="stat-value">{{ keyStats.used }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Revertidas</div>
-        <div class="stat-value">{{ keyStats.reverted }}</div>
-      </div>
-    </div>
+    </header>
 
-    <!-- GERAR KEY -->
-    <div class="section-block" v-if="resalePlan">
-      <div
-        class="flex items-center justify-between wrap gap-4"
-        style="margin-bottom: var(--space-4)"
-      >
-        <div>
-          <div class="section-label">GERAR KEY DE REVENDA</div>
-          <p class="section-desc">
-            {{ resalePlan.days }} dias · custa {{ resalePlan.price }} créditos
+    <!-- ── MAIN ── -->
+    <main class="main-content container">
+      <!-- Stats strip -->
+      <div class="stats-strip">
+        <div class="stat-strip-item">
+          <span class="stat-strip-label">Total de Keys</span>
+          <span class="stat-strip-value">{{ userStore.keyStats.total }}</span>
+        </div>
+        <div class="stat-strip-divider"></div>
+        <div class="stat-strip-item">
+          <span class="stat-strip-label">Disponíveis</span>
+          <span class="stat-strip-value" style="color: var(--green)">
+            {{ userStore.keyStats.available }}
+          </span>
+        </div>
+        <div class="stat-strip-divider"></div>
+        <div class="stat-strip-item">
+          <span class="stat-strip-label">Usadas</span>
+          <span class="stat-strip-value" style="color: var(--orange)">
+            {{ userStore.keyStats.used }}
+          </span>
+        </div>
+        <div class="stat-strip-divider"></div>
+        <div class="stat-strip-item">
+          <span class="stat-strip-label">Revertidas</span>
+          <span class="stat-strip-value" style="color: var(--text-muted)">
+            {{ userStore.keyStats.reverted }}
+          </span>
+        </div>
+        <div class="stat-strip-spacer"></div>
+        <div class="stat-strip-status">
+          <span class="status-dot" :class="userStore.isExpired ? 'expired' : 'active'"></span>
+          <span>{{ userStore.isExpired ? 'LICENÇA EXPIRADA' : 'LICENÇA ATIVA' }}</span>
+        </div>
+      </div>
+
+      <!-- Layout: sidebar + content -->
+      <div class="dash-layout">
+        <!-- Sidebar nav -->
+        <aside class="dash-sidebar">
+          <nav class="side-nav">
+            <div class="side-nav-header">MÓDULOS</div>
+            <button
+              class="side-nav-item"
+              :class="{ active: activeTab === 'license' }"
+              @click="activeTab = 'license'"
+            >
+              <span class="side-nav-icon">◧</span>
+              Minha Licença
+            </button>
+            <button
+              class="side-nav-item"
+              :class="{ active: activeTab === 'resale' }"
+              @click="activeTab = 'resale'"
+            >
+              <span class="side-nav-icon">⟳</span>
+              Revenda de Keys
+            </button>
+            <button
+              class="side-nav-item"
+              :class="{ active: activeTab === 'credits' }"
+              @click="activeTab = 'credits'"
+            >
+              <span class="side-nav-icon">◈</span>
+              Comprar Créditos
+            </button>
+          </nav>
+
+          <!-- License status mini card -->
+          <div class="side-license-card">
+            <div class="slc-label">LICENÇA</div>
+            <div
+              class="slc-value"
+              :style="{ color: userStore.isExpired ? 'var(--red)' : 'var(--green)' }"
+            >
+              {{ userStore.isExpired ? 'EXPIRADA' : `${userStore.daysLeft} DIAS` }}
+            </div>
+            <div class="slc-date">
+              Expira: {{ formatDate(userStore.profile?.software_access_until) }}
+            </div>
+          </div>
+        </aside>
+
+        <!-- Content area -->
+        <div class="dash-content">
+          <!-- ═══ TAB: LICENÇA ═══════════════════════════════════ -->
+          <div v-if="activeTab === 'license'" class="tab-content space-y-6">
+            <!-- Status da licença -->
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Status da Licença</h2>
+              </div>
+              <div class="card-body">
+                <div class="license-status-row">
+                  <div class="license-status-block">
+                    <div class="lsb-label">DIAS RESTANTES</div>
+                    <div class="lsb-value" :class="userStore.isExpired ? 'text-red' : 'text-green'">
+                      {{ userStore.daysLeft }}
+                    </div>
+                  </div>
+                  <div class="license-status-block">
+                    <div class="lsb-label">EXPIRA EM</div>
+                    <div class="lsb-date mono">
+                      {{ formatDate(userStore.profile?.software_access_until) }}
+                    </div>
+                  </div>
+                  <div class="license-status-block">
+                    <div class="lsb-label">STATUS</div>
+                    <span
+                      :class="['badge', userStore.isExpired ? 'badge-danger' : 'badge-success']"
+                    >
+                      {{ userStore.isExpired ? 'Expirada' : 'Ativa' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Planos para estender -->
+          <div class="card" v-if="activeTab === 'license'">
+            <div class="card-header">
+              <div class="card-header-inner">
+                <div>
+                  <h2 class="card-title">Estender Licença</h2>
+                  <p class="card-subtitle">Adicione dias de acesso usando seus créditos</p>
+                </div>
+                <div class="credit-badge">
+                  <span class="credit-badge-label">SALDO</span>
+                  <span class="credit-badge-value">{{ userStore.profile?.credits }}</span>
+                  <span class="credit-badge-unit">créditos</span>
+                </div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="plan-grid">
+                <div
+                  v-for="plan in userStore.plans"
+                  :key="plan.days"
+                  class="plan-card"
+                  :class="{ featured: plan.days === 30 }"
+                >
+                  <div class="plan-header">
+                    <h3 class="plan-name">{{ plan.days }} Dias</h3>
+                    <p class="plan-description">Acesso completo</p>
+                  </div>
+                  <div class="plan-price">
+                    <span class="plan-price-value">{{ plan.price }}</span>
+                    <span class="plan-price-unit">créditos</span>
+                  </div>
+                  <button
+                    class="btn btn-primary btn-full"
+                    :disabled="
+                      (userStore.profile?.credits || 0) < plan.price ||
+                      userStore.loading.buyDays === plan.days
+                    "
+                    @click="confirmBuy(plan)"
+                  >
+                    <span class="spinner" v-if="userStore.loading.buyDays === plan.days" />
+                    <span v-else>COMPRAR</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══ TAB: REVENDA ══════════════════════════════════ -->
+          <div v-if="activeTab === 'resale'" class="tab-content space-y-6">
+            <!-- Gerar Key -->
+            <div class="card">
+              <div class="card-header">
+                <div class="card-header-inner">
+                  <div>
+                    <h2 class="card-title">Gerar Key de Revenda</h2>
+                    <p class="card-subtitle">Crie keys para vender para outros usuários</p>
+                  </div>
+                  <div v-if="userStore.resalePlan" class="resale-plan-badge">
+                    <span class="rpb-label">PLANO ATUAL</span>
+                    <span class="rpb-value mono">
+                      {{ userStore.resalePlan.days }}d · {{ userStore.resalePlan.price }} créditos
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div class="card-body">
+                <!-- Info box -->
+                <div class="info-box">
+                  <span class="info-box-icon">ℹ</span>
+                  <div class="info-box-content">
+                    <p class="info-box-title">COMO FUNCIONA A REVENDA</p>
+                    <p class="info-box-text">
+                      Gere uma key usando seus créditos, venda para seu cliente por fora do sistema
+                      definindo seu próprio preço, e o cliente ativa a key no login criando sua
+                      própria conta. Keys não usadas podem ser revertidas para reembolso dos
+                      créditos.
+                    </p>
+                  </div>
+                </div>
+
+                <div style="margin-top: var(--space-5)">
+                  <button
+                    class="btn btn-primary btn-lg"
+                    :disabled="!canGenerateKey || userStore.loading.generateKey"
+                    @click="handleGenerateKey"
+                  >
+                    <span class="spinner" v-if="userStore.loading.generateKey" />
+                    <span v-else>+ GERAR NOVA KEY</span>
+                  </button>
+                </div>
+
+                <p
+                  v-if="!userStore.resalePlan?.is_active"
+                  class="alert-inline alert-error-inline"
+                  style="margin-top: var(--space-4)"
+                >
+                  ⚠ Plano de revenda temporariamente desativado.
+                </p>
+                <p
+                  v-else-if="(userStore.profile?.credits || 0) < (userStore.resalePlan?.price || 0)"
+                  class="alert-inline alert-warning-inline"
+                  style="margin-top: var(--space-4)"
+                >
+                  ⚠ Créditos insuficientes. Você precisa de
+                  {{ userStore.resalePlan?.price }} créditos.
+                </p>
+              </div>
+            </div>
+
+            <!-- Minhas Keys -->
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Minhas Keys</h2>
+              </div>
+              <div class="card-body" style="padding: 0">
+                <div v-if="userStore.loading.keys" class="empty-state">
+                  <span class="spinner" />
+                  <p>Carregando...</p>
+                </div>
+                <div v-else-if="userStore.keys.length === 0" class="empty-state">
+                  <div class="empty-state-icon">⌗</div>
+                  <p>Nenhuma key gerada ainda</p>
+                  <p style="font-size: 0.8rem; margin-top: var(--space-1)">
+                    Gere sua primeira key acima
+                  </p>
+                </div>
+                <table v-else>
+                  <thead>
+                    <tr>
+                      <th>Key</th>
+                      <th>Criada em</th>
+                      <th>Status</th>
+                      <th>Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="key in userStore.keys" :key="key.id">
+                      <td>
+                        <span class="key-value mono">{{ key.key }}</span>
+                      </td>
+                      <td class="mono text-sm">{{ formatDate(key.created_at) }}</td>
+                      <td>
+                        <span :class="['badge', keyStatusBadge(key)]">
+                          {{ keyStatusLabel(key) }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="flex gap-2">
+                          <button class="btn btn-ghost btn-sm" @click="copyKey(key.key)">
+                            Copiar
+                          </button>
+                          <button
+                            v-if="!key.used && !key.reverted"
+                            class="btn btn-danger btn-sm"
+                            :disabled="userStore.loading.revertKey === key.id"
+                            @click="confirmRevert(key)"
+                          >
+                            <span class="spinner" v-if="userStore.loading.revertKey === key.id" />
+                            <span v-else>Reverter</span>
+                          </button>
+                          <span v-else class="text-muted text-sm">—</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══ TAB: CRÉDITOS ═════════════════════════════════ -->
+          <div v-if="activeTab === 'credits'" class="tab-content space-y-6">
+            <div class="card">
+              <div class="card-header">
+                <h2 class="card-title">Comprar Créditos</h2>
+                <p class="card-subtitle">Adicione créditos à sua conta via Pix</p>
+              </div>
+              <div class="card-body">
+                <div class="alert alert-info">
+                  <span>◎</span>
+                  <div>
+                    <p style="font-weight: 700; font-size: 0.9rem; letter-spacing: 0.06em">
+                      EM BREVE
+                    </p>
+                    <p style="font-size: 0.85rem; margin-top: 2px">
+                      A integração com gateway de pagamento está sendo configurada. Entre em contato
+                      com o administrador para adicionar créditos manualmente.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="plan-grid" style="margin-top: var(--space-6); opacity: 0.45">
+                  <div class="plan-card">
+                    <div class="plan-header">
+                      <h3 class="plan-name">10 Créditos</h3>
+                    </div>
+                    <div class="plan-price">
+                      <span class="plan-price-value" style="color: var(--text-muted)"
+                        >R$&thinsp;10</span
+                      >
+                    </div>
+                    <button class="btn btn-secondary btn-full" disabled>INDISPONÍVEL</button>
+                  </div>
+                  <div class="plan-card">
+                    <div class="plan-header">
+                      <h3 class="plan-name">20 Créditos</h3>
+                    </div>
+                    <div class="plan-price">
+                      <span class="plan-price-value" style="color: var(--text-muted)"
+                        >R$&thinsp;20</span
+                      >
+                    </div>
+                    <button class="btn btn-secondary btn-full" disabled>INDISPONÍVEL</button>
+                  </div>
+                  <div class="plan-card featured">
+                    <div class="plan-header">
+                      <h3 class="plan-name">30 Créditos</h3>
+                    </div>
+                    <div class="plan-price">
+                      <span class="plan-price-value" style="color: var(--text-muted)"
+                        >R$&thinsp;30</span
+                      >
+                    </div>
+                    <button class="btn btn-secondary btn-full" disabled>INDISPONÍVEL</button>
+                  </div>
+                  <div class="plan-card">
+                    <div class="plan-header">
+                      <h3 class="plan-name">100 Créditos</h3>
+                    </div>
+                    <div class="plan-price">
+                      <span class="plan-price-value" style="color: var(--text-muted)"
+                        >R$&thinsp;100</span
+                      >
+                    </div>
+                    <button class="btn btn-secondary btn-full" disabled>INDISPONÍVEL</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- end dash-content -->
+      </div>
+      <!-- end dash-layout -->
+    </main>
+
+    <!-- ── MODAL: Reverter Key ── -->
+    <div v-if="showRevertModal" class="modal-overlay" @click.self="showRevertModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">⚠ Reverter Key</h3>
+        </div>
+        <div class="modal-body">
+          <p style="color: var(--text-secondary); margin-bottom: var(--space-4)">
+            Tem certeza que deseja reverter esta key?
+          </p>
+          <div class="key-display">
+            <span class="key-value mono">{{ selectedKey?.key }}</span>
+          </div>
+          <p class="form-hint" style="margin-top: var(--space-3)">
+            Os créditos serão devolvidos e a key será invalidada permanentemente.
           </p>
         </div>
-        <button
-          class="btn btn-primary"
-          :disabled="generatingKey || (profile?.credits ?? 0) < resalePlan.price"
-          @click="generateKey"
-        >
-          <span class="spinner" v-if="generatingKey" />
-          <span v-else>+ GERAR KEY</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="divider" style="margin-bottom: var(--space-6)" />
-
-    <!-- ESTENDER LICENÇA -->
-    <div class="section-block">
-      <div class="section-label" style="margin-bottom: var(--space-4)">ESTENDER LICENÇA</div>
-      <div class="plans-grid">
-        <div class="plan-card" v-for="plan in plans" :key="plan.days">
-          <div class="plan-days">{{ plan.days }}<span>d</span></div>
-          <div class="plan-price">{{ plan.price }} créditos</div>
-          <button
-            class="btn btn-ghost btn-sm btn-full"
-            :disabled="buyingDays === plan.days || (profile?.credits ?? 0) < plan.price"
-            @click="openBuyConfirm(plan.days)"
-          >
-            <span class="spinner" v-if="buyingDays === plan.days" />
-            <span v-else>COMPRAR</span>
-          </button>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showRevertModal = false">Cancelar</button>
+          <button class="btn btn-danger" @click="handleRevert">Reverter Key</button>
         </div>
       </div>
     </div>
 
-    <div class="divider" style="margin-bottom: var(--space-6)" />
-
-    <!-- KEYS GERADAS -->
-    <div class="section-block">
-      <div class="section-label" style="margin-bottom: var(--space-4)">KEYS GERADAS</div>
-      <div class="table-wrap">
-        <div class="loading-row" v-if="loadingKeys"><span class="spinner" /> Carregando…</div>
-        <div class="empty-keys" v-else-if="keys.length === 0">
-          <span>Nenhuma key gerada ainda.</span>
-          <span>Gere keys para revenda acima ↑</span>
+    <!-- ── MODAL: Comprar Dias ── -->
+    <div v-if="showBuyModal" class="modal-overlay" @click.self="showBuyModal = false">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Confirmar Compra</h3>
         </div>
-        <table v-else>
-          <thead>
-            <tr>
-              <th>Key</th>
-              <th>Criada em</th>
-              <th>Dias</th>
-              <th>Preço</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="k in keys" :key="k.id">
-              <td class="mono key-cell">
-                <span>{{ k.key }}</span>
-                <button class="btn-copy" @click="copyKey(k.key)">⎘</button>
-              </td>
-              <td>{{ formatDate(k.created_at) }}</td>
-              <td class="mono">{{ k.duration_days }}d</td>
-              <td class="mono">{{ k.price }}</td>
-              <td>
-                <span :class="keyStatusBadge(k)">{{ keyStatusLabel(k) }}</span>
-              </td>
-              <td>
-                <button
-                  class="btn btn-ghost btn-sm"
-                  :disabled="k.used || k.reverted || revertingKeyId === k.id"
-                  @click="openRevertConfirm(k)"
-                >
-                  <span class="spinner" v-if="revertingKeyId === k.id" />
-                  <span v-else>REVERTER</span>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </main>
-
-  <!-- LOADING -->
-  <div class="loading-page" v-else>
-    <span class="spinner" />
-  </div>
-
-  <!-- MODAL: REVERTER KEY -->
-  <div class="overlay" v-if="showRevertConfirm" @click.self="showRevertConfirm = false">
-    <div class="modal">
-      <div class="modal-header">
-        <span class="modal-title">Reverter key</span>
-      </div>
-      <div class="flex flex-col gap-2">
-        <span>Deseja reverter esta key?</span>
-        <div class="key-badge mono">{{ revertTarget?.key }}</div>
-        <span style="color: var(--muted); font-size: var(--text-sm)"
-          >Os créditos serão devolvidos e a key será invalidada.</span
-        >
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" @click="showRevertConfirm = false">Cancelar</button>
-        <button class="btn btn-primary" @click="revertKey">Reverter</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: COMPRAR DIAS -->
-  <div class="overlay" v-if="showBuyConfirm" @click.self="showBuyConfirm = false">
-    <div class="modal">
-      <div class="modal-header">
-        <span class="modal-title">Estender licença</span>
-      </div>
-      <div class="flex flex-col gap-2">
-        <span>Deseja estender sua licença em {{ buyTarget }} dias?</span>
-        <div class="plan-info">
-          <span>Custo: {{ plans.find((p) => p.days === buyTarget)?.price }} créditos</span>
+        <div class="modal-body">
+          <p style="color: var(--text-secondary)">
+            Adicionar
+            <strong style="color: var(--text-primary)">{{ selectedPlan?.days }} dias</strong> à sua
+            licença?
+          </p>
+          <div class="confirm-row">
+            <span class="confirm-label">CUSTO TOTAL</span>
+            <span class="confirm-value mono">{{ selectedPlan?.price }} créditos</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showBuyModal = false">Cancelar</button>
+          <button class="btn btn-primary" @click="handleBuy">Confirmar</button>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" @click="showBuyConfirm = false">Cancelar</button>
-        <button class="btn btn-primary" @click="buyDays">Confirmar</button>
+    </div>
+
+    <!-- ── MODAL: Key Gerada ── -->
+    <div
+      v-if="showGeneratedKeyModal"
+      class="modal-overlay"
+      @click.self="showGeneratedKeyModal = false"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title" style="color: var(--green)">✓ Key Gerada</h3>
+        </div>
+        <div class="modal-body">
+          <p class="form-hint" style="margin-bottom: var(--space-4)">
+            Copie a key abaixo. Ela não será exibida novamente.
+          </p>
+          <div class="key-display">
+            <span class="key-value mono">{{ generatedKey }}</span>
+            <button class="btn btn-primary btn-sm" @click="copyKey(generatedKey)">Copiar</button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-primary" @click="showGeneratedKeyModal = false">Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TOASTS ── -->
+    <div class="toast-container">
+      <div
+        v-for="toast in useToastStore().toasts"
+        :key="toast.id"
+        :class="['toast', `toast-${toast.type}`]"
+      >
+        <span>{{ toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : '◎' }}</span>
+        {{ toast.message }}
       </div>
     </div>
   </div>
 
-  <!-- TOASTS -->
-  <div class="toast-container">
-    <div v-for="t in toasts" :key="t.id" :class="`toast toast-${t.type}`">
-      <span>{{ t.type === 'success' ? '✓' : t.type === 'error' ? '✕' : 'ℹ' }}</span>
-      {{ t.message }}
+  <!-- Loading state -->
+  <div v-else class="loading-page">
+    <div class="loading-content">
+      <span class="spinner" style="width: 32px; height: 32px" />
+      <p class="loading-label">INICIALIZANDO SISTEMA</p>
     </div>
   </div>
 </template>
 
 <style scoped>
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-6) var(--space-5);
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-family: var(--font-mono);
-}
-
-.header-pill {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 4px 10px;
-}
-
-.pill-label {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  letter-spacing: 0.08em;
-  color: var(--muted);
-}
-
-.pill-value {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--text-hi);
-}
-
-.section-block {
-  margin-bottom: var(--space-6);
-}
-
-.section-desc {
-  font-size: var(--text-sm);
-  color: var(--muted);
-  margin-top: var(--space-1);
-}
-
-.plans-grid {
-  display: flex;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-}
-
-.plan-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: var(--space-5);
-  min-width: 140px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  align-items: center;
-  text-align: center;
-}
-
-.plan-days {
-  font-size: 2rem;
-  font-weight: 700;
-  font-family: var(--font-mono);
-  font-size: var(--text-2xl);
-  font-weight: 600;
-  color: var(--text-hi);
-  line-height: 1;
-}
-
-.plan-days span {
-  font-size: var(--text-md);
-  color: var(--muted);
-}
-
-.plan-price {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: var(--amber);
-}
-
-.key-cell {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.key-value {
-  font-size: var(--text-sm);
-  color: var(--text);
-}
-
-.key-preview {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: var(--muted);
-  word-break: break-all;
-}
-
-.loading-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-6) var(--space-5);
-  color: var(--muted);
-  font-size: var(--text-sm);
-  font-family: var(--font-mono);
-}
-
-.empty-row {
-  color: var(--muted);
-  font-size: var(--text-sm);
-  text-align: center;
-  padding: var(--space-8);
+/* ── Page Background ── */
+.page-wrapper,
+.loading-page {
+  background-color: #090f0b;
+  background-image: url('@/assets/dayz_login_bg2.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  min-height: 100vh;
 }
 
 .loading-page {
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ── Main Layout ── */
+.main-content {
+  width: 100%;
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-8);
+  flex: 1;
+}
+
+.dash-content {
+  display: grid;
+  gap: var(--space-6);
+}
+
+/* ── Stats Strip ── */
+.stats-strip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-6);
+  margin-bottom: var(--space-6);
+  overflow: hidden;
+}
+
+.stat-strip-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--space-5);
+}
+
+.stat-strip-item:first-child {
+  padding-left: 0;
+}
+
+.stat-strip-label {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.stat-strip-value {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.stat-strip-divider {
+  width: 1px;
+  height: 36px;
+  background: var(--wire);
+  flex-shrink: 0;
+}
+
+.stat-strip-spacer {
+  flex: 1;
+}
+
+.stat-strip-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+/* ── Dashboard Layout ── */
+.dash-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--space-6);
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .dash-layout {
+    grid-template-columns: 1fr;
+  }
+  .dash-sidebar {
+    display: none;
+  }
+}
+
+/* ── Sidebar ── */
+.dash-sidebar {
+  position: sticky;
+  top: 76px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.side-nav {
+  background: var(--bg-surface);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.side-nav-header {
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--text-disabled);
+  background: var(--bg-void);
+  border-bottom: 1px solid var(--wire);
+}
+
+.side-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.side-nav-item:hover {
+  color: var(--text-secondary);
+  background: var(--bg-elevated);
+}
+
+.side-nav-item.active {
+  color: var(--amber);
+  border-left-color: var(--amber);
+  background: var(--amber-dim);
+}
+
+.side-nav-icon {
+  opacity: 0.5;
+  font-size: 0.85rem;
+}
+
+.side-nav-item.active .side-nav-icon {
+  opacity: 1;
+}
+
+/* License card in sidebar */
+.side-license-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-5);
+}
+
+.slc-label {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-1);
+}
+
+.slc-value {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-1);
+}
+
+.slc-date {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+/* ── Cards ── */
+.card-header-inner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+
+.card-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* Credit badge */
+.credit-badge {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  background: var(--amber-dim);
+  border: 1px solid rgba(200, 164, 52, 0.25);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
+}
+
+.credit-badge-label {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: rgba(200, 164, 52, 0.6);
+}
+
+.credit-badge-value {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--amber);
+}
+
+.credit-badge-unit {
+  font-size: 0.8rem;
+  color: rgba(200, 164, 52, 0.6);
+}
+
+/* Resale plan badge */
+.resale-plan-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.rpb-label {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.rpb-value {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* License status row */
+.license-status-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 600px) {
+  .license-status-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.license-status-block {
+  padding: var(--space-5);
+  background: var(--bg-void);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+}
+
+.lsb-label {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.lsb-value {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.lsb-date {
+  font-size: 1rem;
+  color: var(--text-secondary);
+}
+
+.text-red {
+  color: var(--red);
+}
+.text-green {
+  color: var(--green);
+}
+
+/* Info box */
+.info-box {
+  display: flex;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--amber-dim);
+  border: 1px solid rgba(200, 164, 52, 0.2);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--radius-sm);
+}
+
+.info-box-icon {
+  color: var(--amber);
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.info-box-title {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+  margin-bottom: var(--space-1);
+}
+
+.info-box-text {
+  font-size: 0.875rem;
+  color: rgba(200, 164, 52, 0.7);
+  line-height: 1.5;
+}
+
+/* Inline alerts */
+.alert-inline {
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid;
+}
+
+.alert-error-inline {
+  background: var(--red-dim);
+  border-color: var(--red);
+  color: #e8a0a0;
+}
+.alert-warning-inline {
+  background: var(--orange-dim);
+  border-color: var(--orange);
+  color: #d4a060;
+}
+
+/* Modal confirm row */
+.confirm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-void);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+}
+
+.confirm-label {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.confirm-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--amber);
+}
+
+/* Loading content */
+.loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.loading-label {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--text-muted);
+}
+
+.tab-content {
 }
 </style>

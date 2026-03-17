@@ -1,186 +1,297 @@
+<!-- LoginView.vue -->
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 
-const router = useRouter()
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+const authStore = useAuthStore()
 
 const username = ref('')
 const password = ref('')
 const email = ref('')
-const activationKey = ref('')
-const loading = ref(false)
-const errorMsg = ref('')
-
-const isActivation = computed(() => activationKey.value.trim().length > 0)
-
-async function rpc(fn: string, body: Record<string, unknown>) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
-}
+const referralCode = ref('')
+const isRegistering = ref(false)
 
 async function handleSubmit() {
-  errorMsg.value = ''
+  const success = await authStore.login(
+    username.value,
+    password.value,
+    isRegistering.value ? referralCode.value : '',
+    isRegistering.value ? email.value : '',
+  )
 
-  if (!username.value.trim() || !password.value) {
-    errorMsg.value = 'Usuário e senha são obrigatórios.'
-    return
-  }
-
-  loading.value = true
-
-  try {
-    if (isActivation.value) {
-      const activateResult = await rpc('activate_key', {
-        p_key: activationKey.value.trim(),
-        p_username: username.value.trim(),
-        p_password: password.value,
-        p_email: email.value.trim() || null,
-      })
-
-      if (activateResult.status !== 'ok') {
-        const messages: Record<string, string> = {
-          key_not_found: 'Key não encontrada.',
-          key_already_used: 'Essa key já foi utilizada.',
-          key_reverted: 'Essa key foi cancelada.',
-          user_already_exists: 'Esse usuário já existe.',
-        }
-        errorMsg.value = messages[activateResult.status] ?? `Erro: ${activateResult.status}`
-        return
-      }
-    }
-
-    const loginResult = await rpc('web_login', {
-      p_username: username.value.trim(),
-      p_password: password.value,
-    })
-
-    if (loginResult.status === 'ok') {
-      localStorage.setItem('session_token', loginResult.token)
-      localStorage.setItem('software_access_until', loginResult.software_access_until)
-      router.push('/user')
-      return
-    }
-
-    const messages: Record<string, string> = {
-      invalid_credentials: 'Usuário ou senha incorretos.',
-      inactive: 'Conta desativada. Entre em contato com o suporte.',
-      expired: 'Sua licença expirou.',
-      session_sharing: `Conta em uso em outro dispositivo há ${loginResult.days_ago}d. Tente em ${(7 - loginResult.days_ago).toFixed(1)} dias.`,
-    }
-    errorMsg.value = messages[loginResult.status] ?? `Erro: ${loginResult.status}`
-  } catch {
-    errorMsg.value = 'Erro de conexão. Tente novamente.'
-  } finally {
-    loading.value = false
+  if (!success && authStore.error) {
+    // Error is already set in store
   }
 }
 </script>
 
 <template>
   <div class="login-page">
-    <div class="login-card card">
-      <div class="logo">
-        <div class="logo-icon">⬡</div>
-        <span>DAYZ<span>BOT</span></span>
-      </div>
-
-      <div class="section-label">{{ isActivation ? 'CRIAR CONTA' : 'ACESSO' }}</div>
-
-      <div class="flex flex-col gap-4">
-        <div class="field">
-          <label>USUÁRIO</label>
-          <input
-            class="input"
-            v-model="username"
-            type="text"
-            autocomplete="username"
-            :disabled="loading"
-            @keyup.enter="handleSubmit"
-          />
+    <!-- ── Auth Form ──────────────────────────────── -->
+    <div class="login-panel">
+      <div class="login-inner">
+        <!-- Terminal header bar -->
+        <div class="terminal-header">
+          <span class="terminal-dots"> <span></span><span></span><span></span> </span>
+          <span class="terminal-title">
+            {{ isRegistering ? 'CRIAR CONTA' : 'AUTENTICAÇÃO' }}
+          </span>
         </div>
 
-        <div class="field">
-          <label>SENHA</label>
-          <input
-            class="input"
-            v-model="password"
-            type="password"
-            autocomplete="current-password"
-            :disabled="loading"
-            @keyup.enter="handleSubmit"
-          />
+        <!-- Tab switcher -->
+        <div class="auth-tabs">
+          <button
+            class="auth-tab"
+            :class="{ active: !isRegistering }"
+            @click="isRegistering = false"
+          >
+            Entrar
+          </button>
+          <button class="auth-tab" :class="{ active: isRegistering }" @click="isRegistering = true">
+            Criar Conta
+          </button>
         </div>
 
-        <div class="field" v-if="isActivation">
-          <label>E-MAIL <span class="optional">OPCIONAL</span></label>
-          <input
-            class="input"
-            v-model="email"
-            type="email"
-            autocomplete="email"
-            :disabled="loading"
-          />
+        <!-- Form -->
+        <form @submit.prevent="handleSubmit" class="auth-form">
+          <div class="form-group">
+            <label class="form-label">Usuário</label>
+            <input
+              v-model="username"
+              type="text"
+              class="form-input"
+              placeholder="identificação do operador"
+              autocomplete="username"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Senha</label>
+            <input
+              v-model="password"
+              type="password"
+              class="form-input"
+              placeholder="••••••••"
+              autocomplete="current-password"
+              required
+            />
+          </div>
+
+          <template v-if="isRegistering">
+            <div class="form-group">
+              <label class="form-label">
+                E-mail
+                <span class="optional">opcional</span>
+              </label>
+              <input
+                v-model="email"
+                type="email"
+                class="form-input"
+                placeholder="contato@exemplo.com"
+              />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Código de Indicação</label>
+              <input
+                v-model="referralCode"
+                type="text"
+                class="form-input mono"
+                placeholder="Código de quem te indicou"
+                spellcheck="false"
+                required
+              />
+            </div>
+          </template>
+
+          <!-- Error -->
+          <div v-if="authStore.error" class="alert alert-error">
+            <span>⚠</span>
+            <span>{{ authStore.error }}</span>
+          </div>
+
+          <!-- Submit -->
+          <button
+            type="submit"
+            class="btn btn-primary btn-lg w-full submit-btn"
+            :disabled="authStore.loading"
+          >
+            <span class="spinner" v-if="authStore.loading" />
+            <template v-else>
+              <span class="submit-icon">▶</span>
+              <span>{{ isRegistering ? 'CRIAR CONTA' : 'AUTENTICAR' }}</span>
+            </template>
+          </button>
+        </form>
+
+        <!-- Footer links -->
+        <div class="auth-footer">
+          <span v-if="!isRegistering">
+            Sem conta?
+            <a href="#" @click.prevent="isRegistering = true">Criar conta</a>
+          </span>
+          <span v-else>
+            Já tem conta?
+            <a href="#" @click.prevent="isRegistering = false">Fazer login</a>
+          </span>
         </div>
-
-        <div class="field">
-          <label>KEY DE ATIVAÇÃO <span class="optional">OPCIONAL</span></label>
-          <input
-            class="input mono-input"
-            v-model="activationKey"
-            type="text"
-            placeholder="Deixe vazio para apenas logar"
-            :disabled="loading"
-          />
-        </div>
-
-        <div class="alert alert-error" v-if="errorMsg"><span>✕</span> {{ errorMsg }}</div>
-
-        <button class="btn btn-primary btn-full" :disabled="loading" @click="handleSubmit">
-          <span class="spinner" v-if="loading" />
-          <span v-else>{{ isActivation ? 'CRIAR CONTA E ENTRAR' : 'ENTRAR' }}</span>
-        </button>
-      </div>
-
-      <div class="login-hint" v-if="!isActivation">
-        Novo usuário? Insira sua key de ativação acima.
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+/* ── Page layout ── */
 .login-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-4);
-}
-
-.login-card {
-  width: 100%;
-  max-width: 380px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
+  background-color: #090f0b;
+  background-image: url('@/assets/dayz_login_bg.svg');
+  background-position: center;
+  background-repeat: no-repeat;
   padding: var(--space-8);
 }
 
-.login-hint {
-  font-size: var(--text-sm);
-  color: var(--muted);
+/* ── Panel ── */
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.login-inner {
+  width: 100%;
+  max-width: 420px;
+}
+
+/* Terminal header decoration */
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0.6rem 1rem;
+  background: var(--bg-void);
+  border: 1px solid var(--wire);
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  margin-bottom: 0;
+}
+
+.terminal-dots {
+  display: flex;
+  gap: 5px;
+}
+
+.terminal-dots span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--wire-active);
+}
+
+.terminal-dots span:first-child {
+  background: var(--red);
+}
+.terminal-dots span:nth-child(2) {
+  background: var(--orange);
+}
+.terminal-dots span:last-child {
+  background: var(--green);
+}
+
+.terminal-title {
+  font-family: var(--font-ui);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+/* Tabs */
+.auth-tabs {
+  display: flex;
+  background: var(--bg-void);
+  border: 1px solid var(--wire);
+  border-top: none;
+  border-bottom: none;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-bottom: 2px solid transparent;
+}
+
+.auth-tab:hover {
+  color: var(--text-secondary);
+}
+
+.auth-tab.active {
+  color: var(--amber);
+  background: rgba(200, 164, 52, 0.05);
+  border-bottom-color: var(--amber);
+}
+
+/* Form area */
+.auth-form {
+  background: var(--bg-void);
+  border: 1px solid var(--wire);
+  border-top: none;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Submit button */
+.submit-btn {
+  margin-top: var(--space-2);
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.submit-icon {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+/* Footer */
+.auth-footer {
   text-align: center;
+  padding: var(--space-4);
+  background: var(--bg-void);
+  border: 1px solid var(--wire);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  letter-spacing: 0.04em;
+}
+
+.auth-footer a {
+  color: var(--amber);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-footer a:hover {
+  color: var(--amber-light);
+  text-decoration: underline;
 }
 </style>
