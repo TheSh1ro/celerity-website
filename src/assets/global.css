@@ -28,8 +28,7 @@
   --green-glow: 0 0 16px rgba(58, 170, 82, 0.2);
 
   /* Blood red — danger */
-  --red: #c23030;
-  --red-light: #e04444;
+  --red: #e04444;
   --red-dim: rgba(194, 48, 48, 0.12);
 
   /* Rust orange — warning */
