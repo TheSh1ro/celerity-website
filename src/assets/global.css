@@ -46,9 +46,9 @@
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.8);
 
   /* Typography */
-  --font-display: 'Rajdhani', sans-serif;    /* Títulos, números grandes */
+  --font-display: 'Rajdhani', sans-serif; /* Títulos, números grandes */
   --font-ui: 'Barlow Condensed', sans-serif; /* Labels, nav, badges */
-  --font-body: 'Barlow', sans-serif;         /* Texto corrido, parágrafos */
+  --font-body: 'Barlow', sans-serif; /* Texto corrido, parágrafos */
   --font-mono: 'Share Tech Mono', monospace; /* Chaves, códigos */
   /* Backwards compat */
   --font-sans: 'Barlow', sans-serif;
@@ -300,6 +300,12 @@ label,
   border-bottom: 1px solid var(--wire);
 }
 
+.card-header-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
 .card-body {
   padding: var(--space-6);
 }
@@ -310,6 +316,7 @@ label,
 }
 
 /* ─── BUTTONS ────────────────────────────────────────────────────────────── */
+
 .btn {
   display: inline-flex;
   align-items: center;
