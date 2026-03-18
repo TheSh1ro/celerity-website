@@ -92,7 +92,7 @@ async function handleGenerateKey() {
         <!-- How it works -->
         <div class="resale-how-it-works" :class="{ 'is-open': howItWorksOpen }">
           <button class="resale-hiw-header" @click="howItWorksOpen = !howItWorksOpen">
-            <span class="resale-hiw-title">⟳ COMO FUNCIONA A REVENDA</span>
+            <span class="resale-hiw-title">COMO FUNCIONA A REVENDA</span>
             <span class="resale-hiw-chevron" :class="{ 'is-rotated': howItWorksOpen }">▾</span>
           </button>
           <div class="resale-hiw-body" v-show="howItWorksOpen">
