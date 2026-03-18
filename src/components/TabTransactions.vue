@@ -30,8 +30,9 @@ function formatDateTime(date: string | null) {
             <p class="card-subtitle">Registro de movimentações de créditos da sua conta</p>
           </div>
           <button
-            class="btn btn-ghost btn-sm"
+            class="btn btn-ghost"
             :disabled="userStore.loading.transactions"
+            style="margin-top: var(--space-4)"
             @click="userStore.loadTransactions()"
           >
             <span class="spinner" v-if="userStore.loading.transactions" />
