@@ -171,12 +171,6 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  async function deleteUser(userId: string) {
-    const jwt = await getJwt()
-    await supabaseFetch(`users?id=eq.${userId}`, { method: 'DELETE' }, jwt)
-    await loadUsers()
-  }
-
   async function forceLogout(userId: string) {
     const jwt = await getJwt()
     await supabaseFetch(
@@ -215,7 +209,6 @@ export const useAdminStore = defineStore('admin', () => {
     saveResalePlan,
     adjustCredits,
     updateUser,
-    deleteUser,
     forceLogout,
     selectUser,
     closeUserPanel,

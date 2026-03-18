@@ -2,7 +2,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { createClient } from '@supabase/supabase-js'
-import { useAdminStore } from '@/stores/admin'
+import { useAdminStore, type User } from '@/stores/admin'
 import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
 
@@ -40,7 +40,7 @@ const editForm = ref({
   id: '',
   username: '',
   password: '',
-  licenseDays: '' as any,
+  licenseDays: '' as '' | number | 'date',
   customDate: '',
   isActive: true,
 })
@@ -52,8 +52,7 @@ onMounted(async () => {
 async function checkSession() {
   authLoading.value = true
   const { data } = await supabase.auth.getSession()
-  const meta = data.session?.user?.app_metadata as any
-  isAdmin.value = meta?.is_admin === true
+  isAdmin.value = data.session?.user?.app_metadata?.['is_admin'] === true
   authLoading.value = false
 
   if (isAdmin.value) {
@@ -87,8 +86,7 @@ async function adminLogin() {
       return
     }
 
-    const meta = data.user?.app_metadata as any
-    if (meta?.is_admin !== true) {
+    if (data.user?.app_metadata?.['is_admin'] !== true) {
       await supabase.auth.signOut()
       loginError.value = 'Acesso negado. Conta sem permissão de admin.'
       return
@@ -123,7 +121,7 @@ async function saveResalePlan() {
   }
 }
 
-function openCreditsModal(user: any) {
+function openCreditsModal(user: User) {
   creditsForm.value = {
     userId: user.id,
     username: user.username,
@@ -157,7 +155,7 @@ async function saveCredits() {
   }
 }
 
-function openEditModal(user: any) {
+function openEditModal(user: User) {
   editForm.value = {
     id: user.id,
     username: user.username,
@@ -170,7 +168,12 @@ function openEditModal(user: any) {
 }
 
 async function saveEdit() {
-  const patch: any = { is_active: editForm.value.isActive }
+  type EditPatch = {
+    is_active: boolean
+    password_hash?: string
+    software_access_until?: string
+  }
+  const patch: EditPatch = { is_active: editForm.value.isActive }
 
   if (editForm.value.password) {
     patch.password_hash = editForm.value.password
@@ -192,20 +195,20 @@ async function saveEdit() {
   }
 }
 
-function openDeleteModal(user: any) {
+function openDeleteModal(user: User) {
   adminStore.selectUser(user)
   showDeleteModal.value = true
 }
 
 async function confirmDelete() {
   if (!adminStore.selectedUser) return
-  await adminStore.deleteUser(adminStore.selectedUser.id)
-  toastStore.success('Usuário deletado')
+  await adminStore.updateUser(adminStore.selectedUser.id, { is_active: false })
+  toastStore.success('Usuário desativado')
   showDeleteModal.value = false
   adminStore.closeUserPanel()
 }
 
-function openLogoutModal(user: any) {
+function openLogoutModal(user: User) {
   adminStore.selectUser(user)
   showLogoutModal.value = true
 }
@@ -217,7 +220,7 @@ async function confirmLogout() {
   showLogoutModal.value = false
 }
 
-async function expandUser(user: any) {
+async function expandUser(user: User) {
   adminStore.selectUser(user)
   await userStore.loadKeys()
 }
@@ -715,23 +718,23 @@ function daysLeft(iso: string | null) {
     <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
       <div class="modal">
         <div class="modal-header">
-          <h3 class="modal-title" style="color: var(--red)">⚠ Deletar Operador</h3>
+          <h3 class="modal-title" style="color: var(--red)">⚠ Desativar Operador</h3>
         </div>
         <div class="modal-body">
           <p style="color: var(--text-secondary)">
-            Tem certeza que deseja deletar
+            Tem certeza que deseja desativar
             <strong class="mono" style="color: var(--red)">{{
               adminStore.selectedUser?.username
             }}</strong
             >?
           </p>
           <p class="form-hint" style="margin-top: var(--space-2)">
-            Esta ação é irreversível. Todas as keys e dados serão excluídos permanentemente.
+            O operador perderá acesso ao sistema. Esta ação pode ser revertida via edição da conta.
           </p>
         </div>
         <div class="modal-footer">
           <button class="btn btn-ghost" @click="showDeleteModal = false">Cancelar</button>
-          <button class="btn btn-danger" @click="confirmDelete">Deletar</button>
+          <button class="btn btn-danger" @click="confirmDelete">Desativar</button>
         </div>
       </div>
     </div>
