@@ -44,7 +44,7 @@ function formatDate(date: string | null) {
       <div class="container header-content">
         <div class="logo">
           <img src="/src/assets/logo.png" class="logo-icon" />
-          <span>STONE</span>
+          <span>Celerity</span>
         </div>
 
         <nav class="header-nav">

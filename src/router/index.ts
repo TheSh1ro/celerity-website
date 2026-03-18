@@ -25,7 +25,7 @@ const router = createRouter({
   ],
 })
 
-const APP_NAME = 'BEDROCK'
+const APP_NAME = 'Celerity'
 
 router.beforeEach(async (to) => {
   const auth = useAuthStore()

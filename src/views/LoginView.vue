@@ -60,7 +60,7 @@ async function handleSubmit() {
               v-model="username"
               type="text"
               class="form-input"
-              placeholder="identificação do operador"
+              placeholder="identificação de soldado"
               autocomplete="username"
               required
             />
@@ -98,7 +98,7 @@ async function handleSubmit() {
                 v-model="referralCode"
                 type="text"
                 class="form-input mono"
-                placeholder="Código de quem te indicou"
+                placeholder="código de quem te indicou"
                 spellcheck="false"
                 required
               />
