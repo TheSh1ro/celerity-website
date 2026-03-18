@@ -149,7 +149,7 @@ async function handleSubmit() {
   align-items: center;
   justify-content: center;
   background-color: #090f0b;
-  background-image: url('@/assets/dayz_login_bg.svg');
+  background-image: url('@/assets/login_background.svg');
   background-position: center;
   background-repeat: no-repeat;
   padding: var(--space-8);
