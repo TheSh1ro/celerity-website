@@ -1,44 +1,78 @@
-// src/api.ts - Centralização de chamadas API
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+// src/api.ts
+import { createClient } from '@supabase/supabase-js'
+import { SessionInvalidError, resolveError } from '@/errors'
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+export { supabase }
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export interface RpcResponse {
   status: string
   [key: string]: unknown
 }
 
-export async function rpc(
+export interface RpcSuccess<T extends RpcResponse> {
+  ok: true
+  data: T
+}
+
+export interface RpcFailure {
+  ok: false
+  error: string
+}
+
+export type RpcResult<T extends RpcResponse> = RpcSuccess<T> | RpcFailure
+
+// ─── Token providers ──────────────────────────────────────────────────────────
+
+function getUserToken(): string {
+  return localStorage.getItem('session_token') ?? ''
+}
+
+async function getAdminToken(): Promise<string> {
+  const { data } = await supabase.auth.getSession()
+  return data.session?.access_token ?? ''
+}
+
+// ─── HTTP base ────────────────────────────────────────────────────────────────
+
+async function callRpc(
   fn: string,
   body: Record<string, unknown>,
-  token?: string,
+  token: string,
 ): Promise<RpcResponse> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    apikey: SUPABASE_ANON_KEY,
-    Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
-  }
-
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: 'POST',
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      // Fallback para anon quando não há sessão ativa
+      Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
+    },
     body: JSON.stringify(body),
   })
 
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+
+  const data: RpcResponse = await res.json()
+
+  if (data.status === 'session_invalid') throw new SessionInvalidError()
+
+  return data
 }
 
-export async function supabaseFetch(
-  path: string,
-  opts: RequestInit = {},
-  jwt?: string,
-): Promise<unknown> {
+async function callFetch(path: string, opts: RequestInit, token: string): Promise<unknown> {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...opts,
     headers: {
       'Content-Type': 'application/json',
       apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${jwt || SUPABASE_ANON_KEY}`,
+      Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
       Prefer: 'return=representation',
       ...(opts.headers as Record<string, string>),
     },
@@ -51,4 +85,43 @@ export async function supabaseFetch(
 
   const text = await res.text()
   return text ? JSON.parse(text) : null
+}
+
+// ─── Interface pública ────────────────────────────────────────────────────────
+
+export async function userRpc<T extends RpcResponse>(
+  fn: string,
+  body: Record<string, unknown> = {},
+  injectToken = true, // false para RPCs públicos
+): Promise<RpcResult<T>> {
+  try {
+    const token = getUserToken()
+    const enrichedBody = injectToken && token ? { ...body, p_token: token } : body
+    const data = (await callRpc(fn, enrichedBody, '')) as T
+    if (data.status !== 'ok') return { ok: false, error: resolveError(data.status) }
+    return { ok: true, data }
+  } catch (err) {
+    if (err instanceof SessionInvalidError) throw err
+    return { ok: false, error: resolveError('network_error') }
+  }
+}
+
+export async function adminRpc<T extends RpcResponse>(
+  fn: string,
+  body: Record<string, unknown> = {},
+): Promise<RpcResult<T>> {
+  try {
+    const token = await getAdminToken()
+    const data = (await callRpc(fn, body, token)) as T
+    if (data.status !== 'ok') return { ok: false, error: resolveError(data.status) }
+    return { ok: true, data }
+  } catch (err) {
+    if (err instanceof SessionInvalidError) throw err
+    return { ok: false, error: resolveError('network_error') }
+  }
+}
+
+export async function adminFetch(path: string, opts: RequestInit = {}): Promise<unknown> {
+  const token = await getAdminToken()
+  return callFetch(path, opts, token)
 }
