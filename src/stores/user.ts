@@ -1,8 +1,10 @@
-// stores/user.ts
+// src/stores/user.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { rpc } from '@/api'
+import { userRpc } from '@/api'
 import { useAuthStore } from './auth'
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export interface Key {
   id: string
@@ -22,33 +24,42 @@ export interface ResalePlan {
   is_active: boolean
 }
 
+export interface LicensePlan {
+  days: number
+  price: number
+}
+
+// ─── Store ────────────────────────────────────────────────────────────────────
+
 export const useUserStore = defineStore('user', () => {
   const authStore = useAuthStore()
 
-  // State
-  const profile = computed(() => authStore.user)
+  // ─── State ─────────────────────────────────────────────────────────────────
+
   const keys = ref<Key[]>([])
   const resalePlan = ref<ResalePlan | null>(null)
-  const plans = ref([
-    { days: 7, price: 10 },
-    { days: 15, price: 20 },
-    { days: 30, price: 30 },
-  ])
+  const licensePlans = ref<LicensePlan[]>([])
 
   const loading = ref({
     keys: false,
     resalePlan: false,
+    licensePlans: false,
     generateKey: false,
     revertKey: null as string | null,
     buyDays: null as number | null,
   })
 
-  // Getters
+  // ─── Getters ───────────────────────────────────────────────────────────────
+
+  const profile = computed(() => authStore.user)
+
   const daysLeft = computed(() => {
     if (!profile.value?.software_access_until) return 0
     return Math.max(
       0,
-      Math.ceil((new Date(profile.value.software_access_until).getTime() - Date.now()) / 86400000),
+      Math.ceil(
+        (new Date(profile.value.software_access_until).getTime() - Date.now()) / 86_400_000,
+      ),
     )
   })
 
@@ -61,29 +72,31 @@ export const useUserStore = defineStore('user', () => {
     reverted: keys.value.filter((k) => k.reverted).length,
   }))
 
-  // Actions
-  async function loadKeys() {
-    if (!authStore.token) return
+  // ─── Actions ───────────────────────────────────────────────────────────────
 
+  async function loadKeys(): Promise<void> {
     loading.value.keys = true
     try {
-      const result = await rpc('get_user_keys', { p_token: authStore.token })
-      if (result.status === 'ok') {
-        keys.value = (result.keys as Key[]) || []
-      }
+      const result = await userRpc<{ status: string; keys: Key[] }>('get_user_keys', {})
+      if (result.ok) keys.value = result.data.keys ?? []
     } finally {
       loading.value.keys = false
     }
   }
 
-  async function loadResalePlan() {
+  async function loadResalePlan(): Promise<void> {
     loading.value.resalePlan = true
     try {
-      const result = await rpc('get_active_resale_plan', {})
-      if (result.status === 'ok') {
+      const result = await userRpc<{
+        status: string
+        days: number
+        price: number
+      }>('get_active_resale_plan', {}, false)
+
+      if (result.ok) {
         resalePlan.value = {
-          days: result.days as number,
-          price: result.price as number,
+          days: result.data.days,
+          price: result.data.price,
           is_active: true,
         }
       }
@@ -92,105 +105,88 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  async function generateKey() {
-    if (!resalePlan.value || !authStore.token) return { success: false }
+  async function loadLicensePlans(): Promise<void> {
+    loading.value.licensePlans = true
+    try {
+      const result = await userRpc<{ status: string; plans: LicensePlan[] }>(
+        'get_license_plans',
+        {},
+        false,
+      )
+      if (result.ok) licensePlans.value = result.data.plans ?? []
+    } finally {
+      loading.value.licensePlans = false
+    }
+  }
 
+  async function generateKey(): Promise<{ ok: true; key: string } | { ok: false; error: string }> {
     loading.value.generateKey = true
     try {
-      const result = await rpc('generate_key', { p_token: authStore.token })
+      const result = await userRpc<{ status: string; key: string }>('generate_key', {})
 
-      if (result.status === 'ok') {
-        await Promise.all([authStore.loadProfile(), loadKeys()])
-        return { success: true, key: result.key as string }
-      }
+      if (!result.ok) return result
 
-      const messages: Record<string, string> = {
-        session_invalid: 'Sessão inválida.',
-        inactive: 'Conta desativada.',
-        insufficient_credits: 'Créditos insuficientes.',
-        no_resale_plan: 'Plano de revenda não configurado.',
-      }
-      return { success: false, error: messages[result.status] || result.status }
+      await Promise.all([authStore.loadProfile(), loadKeys()])
+      return { ok: true, key: result.data.key }
     } finally {
       loading.value.generateKey = false
     }
   }
 
-  async function revertKey(keyId: string) {
-    if (!authStore.token) return { success: false }
-
+  async function revertKey(keyId: string): Promise<{ ok: true } | { ok: false; error: string }> {
     loading.value.revertKey = keyId
     try {
-      const result = await rpc('revert_key', {
-        p_token: authStore.token,
-        p_key_id: keyId,
-      })
+      const result = await userRpc('revert_key', { p_key_id: keyId })
 
-      if (result.status === 'ok') {
-        await Promise.all([authStore.loadProfile(), loadKeys()])
-        return { success: true }
-      }
+      if (!result.ok) return result
 
-      const messages: Record<string, string> = {
-        session_invalid: 'Sessão inválida.',
-        key_not_found: 'Key não encontrada.',
-        forbidden: 'Sem permissão.',
-        key_already_used: 'Key já foi utilizada.',
-        key_already_reverted: 'Key já foi revertida.',
-      }
-      return { success: false, error: messages[result.status] || result.status }
+      await Promise.all([authStore.loadProfile(), loadKeys()])
+      return { ok: true }
     } finally {
       loading.value.revertKey = null
     }
   }
 
-  async function buyDays(durationDays: number) {
-    if (!authStore.token) return { success: false }
-
+  async function buyDays(
+    durationDays: number,
+  ): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
     loading.value.buyDays = durationDays
     try {
-      const result = await rpc('buy_days', {
-        p_token: authStore.token,
+      const result = await userRpc<{ status: string; days_ago: number }>('buy_days', {
         p_duration_days: durationDays,
       })
 
-      if (result.status === 'ok') {
-        await authStore.loadProfile()
-        return {
-          success: true,
-          message:
-            result.days_ago === 0
-              ? `Licença ativada por ${durationDays} dias!`
-              : `Licença estendida em ${durationDays} dias!`,
-        }
-      }
+      if (!result.ok) return result
 
-      const messages: Record<string, string> = {
-        session_invalid: 'Sessão inválida.',
-        plan_not_found: 'Plano não encontrado.',
-        insufficient_credits: 'Créditos insuficientes.',
-      }
-      return { success: false, error: messages[result.status] || result.status }
+      await authStore.loadProfile()
+
+      const message =
+        result.data.days_ago === 0
+          ? `Licença ativada por ${durationDays} dias!`
+          : `Licença estendida em ${durationDays} dias!`
+
+      return { ok: true, message }
     } finally {
       loading.value.buyDays = null
     }
   }
 
-  function copyKey(key: string) {
+  function copyKey(key: string): void {
     navigator.clipboard.writeText(key)
   }
 
   return {
-    profile,
     keys,
     resalePlan,
-    plans,
+    licensePlans,
     loading,
+    profile,
     daysLeft,
     isExpired,
     keyStats,
     loadKeys,
     loadResalePlan,
+    loadLicensePlans,
     generateKey,
     revertKey,
     buyDays,
