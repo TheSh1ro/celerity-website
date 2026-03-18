@@ -31,12 +31,16 @@ const canGenerateKey = computed(() => {
 })
 
 onMounted(async () => {
-  await Promise.all([userStore.loadKeys(), userStore.loadResalePlan()])
+  await Promise.all([
+    userStore.loadKeys(),
+    userStore.loadResalePlan(),
+    userStore.loadLicensePlans(),
+  ])
 })
 
 async function handleGenerateKey() {
   const result = await userStore.generateKey()
-  if (result.success) {
+  if (result.ok) {
     generatedKey.value = result.key || ''
     showGeneratedKeyModal.value = true
     toastStore.success('Key gerada com sucesso!')
@@ -53,7 +57,7 @@ function confirmRevert(key: Key) {
 async function handleRevert() {
   if (!selectedKey.value) return
   const result = await userStore.revertKey(selectedKey.value.id)
-  if (result.success) {
+  if (result.ok) {
     toastStore.success('Key revertida. Créditos devolvidos.')
     showRevertModal.value = false
   } else {
@@ -69,7 +73,7 @@ function confirmBuy(plan: Plan) {
 async function handleBuy() {
   if (!selectedPlan.value) return
   const result = await userStore.buyDays(selectedPlan.value.days)
-  if (result.success) {
+  if (result.ok) {
     toastStore.success(result.message || 'Dias adicionados!')
     showBuyModal.value = false
   } else {
@@ -267,7 +271,7 @@ function formatDate(date: string | null) {
             <div class="card-body">
               <div class="plan-grid">
                 <div
-                  v-for="plan in userStore.plans"
+                  v-for="plan in userStore.licensePlans"
                   :key="plan.days"
                   class="plan-card"
                   :class="{ featured: plan.days === 30 }"
