@@ -36,13 +36,14 @@ export interface Transaction {
     | 'admin_credit_remove'
     | 'pix_payment'
     | 'key_revert'
+    | 'key_generate'
     | 'key_purchase'
     | 'license_extension'
     | 'key_activation'
     | string
   amount: number
-  balance_after: number
-  description: string | null
+  reference_id: string
+  label: string
   created_at: string
 }
 

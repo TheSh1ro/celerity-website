@@ -4,18 +4,8 @@ import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
 
-const TX_META: Record<string, { label: string; icon: string; credit: boolean }> = {
-  admin_credit_add: { label: 'Admin · Créditos adicionados', icon: '↑', credit: true },
-  admin_credit_remove: { label: 'Admin · Créditos removidos', icon: '↓', credit: false },
-  pix_payment: { label: 'Pagamento via Pix', icon: '↑', credit: true },
-  key_revert: { label: 'Reversão de key', icon: '↑', credit: true },
-  key_purchase: { label: 'Compra de key de revenda', icon: '↓', credit: false },
-  license_extension: { label: 'Extensão de licença', icon: '↓', credit: false },
-  key_activation: { label: 'Ativação via key', icon: '↑', credit: true },
-}
-
-function txMeta(type: string) {
-  return TX_META[type] ?? { label: type, icon: '·', credit: false }
+function isCredit(amount: number) {
+  return amount > 0
 }
 
 function formatDateTime(date: string | null) {
@@ -74,7 +64,6 @@ function formatDateTime(date: string | null) {
               <th>Descrição</th>
               <th>Data</th>
               <th style="text-align: right">Créditos</th>
-              <th style="text-align: right">Saldo após</th>
             </tr>
           </thead>
           <tbody>
@@ -82,14 +71,13 @@ function formatDateTime(date: string | null) {
               <td>
                 <div
                   class="tx-icon"
-                  :class="txMeta(tx.type).credit ? 'tx-icon--credit' : 'tx-icon--debit'"
+                  :class="isCredit(tx.amount) ? 'tx-icon--credit' : 'tx-icon--debit'"
                 >
-                  {{ txMeta(tx.type).icon }}
+                  {{ isCredit(tx.amount) ? '↑' : '↓' }}
                 </div>
               </td>
               <td>
-                <div class="tx-label">{{ txMeta(tx.type).label }}</div>
-                <div v-if="tx.description" class="tx-description">{{ tx.description }}</div>
+                <div class="tx-label">{{ tx.label }}</div>
               </td>
               <td class="mono" style="font-size: 0.82rem; color: var(--text-muted)">
                 {{ formatDateTime(tx.created_at) }}
@@ -97,13 +85,10 @@ function formatDateTime(date: string | null) {
               <td style="text-align: right">
                 <span
                   class="tx-amount"
-                  :class="txMeta(tx.type).credit ? 'tx-amount--credit' : 'tx-amount--debit'"
+                  :class="isCredit(tx.amount) ? 'tx-amount--credit' : 'tx-amount--debit'"
                 >
-                  {{ txMeta(tx.type).credit ? '+' : '-' }}{{ tx.amount }}
+                  {{ tx.amount > 0 ? '+' : '' }}{{ tx.amount }}
                 </span>
-              </td>
-              <td style="text-align: right">
-                <span class="tx-balance mono">{{ tx.balance_after }}</span>
               </td>
             </tr>
           </tbody>
