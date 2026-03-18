@@ -3,7 +3,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { rpc } from '@/api'
 import { useAuthStore } from './auth'
-import type { UserProfile } from './auth'
 
 export interface Key {
   id: string
@@ -27,7 +26,7 @@ export const useUserStore = defineStore('user', () => {
   const authStore = useAuthStore()
 
   // State
-  const profile = ref<UserProfile | null>(null)
+  const profile = computed(() => authStore.user)
   const keys = ref<Key[]>([])
   const resalePlan = ref<ResalePlan | null>(null)
   const plans = ref([
@@ -37,7 +36,6 @@ export const useUserStore = defineStore('user', () => {
   ])
 
   const loading = ref({
-    profile: false,
     keys: false,
     resalePlan: false,
     generateKey: false,
@@ -64,20 +62,6 @@ export const useUserStore = defineStore('user', () => {
   }))
 
   // Actions
-  async function loadProfile() {
-    if (!authStore.token) return
-
-    loading.value.profile = true
-    try {
-      const result = await rpc('get_user_profile', { p_token: authStore.token })
-      if (result.status === 'ok') {
-        profile.value = result as unknown as UserProfile
-      }
-    } finally {
-      loading.value.profile = false
-    }
-  }
-
   async function loadKeys() {
     if (!authStore.token) return
 
@@ -116,7 +100,7 @@ export const useUserStore = defineStore('user', () => {
       const result = await rpc('generate_key', { p_token: authStore.token })
 
       if (result.status === 'ok') {
-        await Promise.all([loadProfile(), loadKeys()])
+        await Promise.all([authStore.loadProfile(), loadKeys()])
         return { success: true, key: result.key as string }
       }
 
@@ -143,7 +127,7 @@ export const useUserStore = defineStore('user', () => {
       })
 
       if (result.status === 'ok') {
-        await Promise.all([loadProfile(), loadKeys()])
+        await Promise.all([authStore.loadProfile(), loadKeys()])
         return { success: true }
       }
 
@@ -171,7 +155,7 @@ export const useUserStore = defineStore('user', () => {
       })
 
       if (result.status === 'ok') {
-        await loadProfile()
+        await authStore.loadProfile()
         return {
           success: true,
           message:
@@ -205,7 +189,6 @@ export const useUserStore = defineStore('user', () => {
     daysLeft,
     isExpired,
     keyStats,
-    loadProfile,
     loadKeys,
     loadResalePlan,
     generateKey,

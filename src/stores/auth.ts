@@ -64,7 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
         token.value = loginResult.token as string
         localStorage.setItem('session_token', loginResult.token as string)
         localStorage.setItem('software_access_until', loginResult.software_access_until as string)
-        router.push('/')
+        router.replace('/')
         return true
       }
 
@@ -90,7 +90,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
     localStorage.removeItem('session_token')
     localStorage.removeItem('software_access_until')
-    router.push('/')
+    router.push({ name: 'login' })
   }
 
   async function loadProfile() {
