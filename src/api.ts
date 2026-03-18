@@ -28,6 +28,14 @@ export interface RpcFailure {
 
 export type RpcResult<T extends RpcResponse> = RpcSuccess<T> | RpcFailure
 
+// ─── Session invalid handler ──────────────────────────────────────────────────
+
+let onSessionInvalid: (() => void) | null = null
+
+export function setSessionInvalidHandler(fn: () => void) {
+  onSessionInvalid = fn
+}
+
 // ─── Token providers ──────────────────────────────────────────────────────────
 
 function getUserToken(): string {
@@ -51,7 +59,6 @@ async function callRpc(
     headers: {
       'Content-Type': 'application/json',
       apikey: SUPABASE_ANON_KEY,
-      // Fallback para anon quando não há sessão ativa
       Authorization: `Bearer ${token || SUPABASE_ANON_KEY}`,
     },
     body: JSON.stringify(body),
@@ -92,7 +99,7 @@ async function callFetch(path: string, opts: RequestInit, token: string): Promis
 export async function userRpc<T extends RpcResponse>(
   fn: string,
   body: Record<string, unknown> = {},
-  injectToken = true, // false para RPCs públicos
+  injectToken = true,
 ): Promise<RpcResult<T>> {
   try {
     const token = getUserToken()
@@ -101,7 +108,10 @@ export async function userRpc<T extends RpcResponse>(
     if (data.status !== 'ok') return { ok: false, error: resolveError(data.status) }
     return { ok: true, data }
   } catch (err) {
-    if (err instanceof SessionInvalidError) throw err
+    if (err instanceof SessionInvalidError) {
+      onSessionInvalid?.()
+      return { ok: false, error: resolveError('session_invalid') }
+    }
     return { ok: false, error: resolveError('network_error') }
   }
 }
@@ -116,7 +126,10 @@ export async function adminRpc<T extends RpcResponse>(
     if (data.status !== 'ok') return { ok: false, error: resolveError(data.status) }
     return { ok: true, data }
   } catch (err) {
-    if (err instanceof SessionInvalidError) throw err
+    if (err instanceof SessionInvalidError) {
+      onSessionInvalid?.()
+      return { ok: false, error: resolveError('session_invalid') }
+    }
     return { ok: false, error: resolveError('network_error') }
   }
 }

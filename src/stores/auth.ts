@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { userRpc, type RpcResponse } from '@/api'
+import { userRpc, setSessionInvalidHandler, type RpcResponse } from '@/api'
 
 export interface UserProfile {
   id: string
@@ -43,6 +43,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => !!token.value)
   const isAdmin = computed(() => user.value?.is_admin ?? false)
+
+  // ─── Session invalid handler ───────────────────────────────────────────────
+
+  setSessionInvalidHandler(() => {
+    clearSession()
+    router.replace({ name: 'login' })
+  })
 
   // ─── Actions ───────────────────────────────────────────────────────────────
 
