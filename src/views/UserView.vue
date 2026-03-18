@@ -1,6 +1,6 @@
 <!-- UserView.vue -->
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
@@ -15,7 +15,7 @@ const authStore = useAuthStore()
 const userStore = useUserStore()
 const toastStore = useToastStore()
 
-const activeTab = ref<'license' | 'resale' | 'credits'>('license')
+const activeTab = ref<'license' | 'resale' | 'credits' | 'transactions'>('license')
 
 const showRevertModal = ref(false)
 const showBuyModal = ref(false)
@@ -36,6 +36,13 @@ onMounted(async () => {
     userStore.loadResalePlan(),
     userStore.loadLicensePlans(),
   ])
+})
+
+// Lazy-load transactions when the tab is first opened
+watch(activeTab, (tab) => {
+  if (tab === 'transactions' && userStore.transactions.length === 0) {
+    userStore.loadTransactions()
+  }
 })
 
 async function handleGenerateKey() {
@@ -101,6 +108,33 @@ function keyStatusLabel(key: Key) {
 function formatDate(date: string | null) {
   if (!date) return '—'
   return new Date(date).toLocaleDateString('pt-BR')
+}
+
+function formatDateTime(date: string | null) {
+  if (!date) return '—'
+  return new Date(date).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+// ─── Transações ──────────────────────────────────────────────────────────────
+
+const TX_META: Record<string, { label: string; icon: string; credit: boolean }> = {
+  admin_credit_add: { label: 'Admin · Créditos adicionados', icon: '↑', credit: true },
+  admin_credit_remove: { label: 'Admin · Créditos removidos', icon: '↓', credit: false },
+  pix_payment: { label: 'Pagamento via Pix', icon: '↑', credit: true },
+  key_revert: { label: 'Reversão de key', icon: '↑', credit: true },
+  key_purchase: { label: 'Compra de key de revenda', icon: '↓', credit: false },
+  license_extension: { label: 'Extensão de licença', icon: '↓', credit: false },
+  key_activation: { label: 'Ativação via key', icon: '↑', credit: true },
+}
+
+function txMeta(type: string) {
+  return TX_META[type] ?? { label: type, icon: '·', credit: false }
 }
 </script>
 
@@ -204,6 +238,14 @@ function formatDate(date: string | null) {
             >
               <span class="side-nav-icon">◈</span>
               Comprar Créditos
+            </button>
+            <button
+              class="side-nav-item"
+              :class="{ active: activeTab === 'transactions' }"
+              @click="activeTab = 'transactions'"
+            >
+              <span class="side-nav-icon">≡</span>
+              Transações
             </button>
           </nav>
 
@@ -465,7 +507,7 @@ function formatDate(date: string | null) {
                 <div v-else-if="userStore.keys.length === 0" class="empty-state">
                   <div class="empty-state-icon">⌗</div>
                   <p>Nenhuma key gerada ainda</p>
-                  <p style="font-size: 0.8rem; margin-top: var(--space-1)">
+                  <p style="font-size: 0.85rem; margin-top: var(--space-1)">
                     Gere sua primeira key acima
                   </p>
                 </div>
@@ -523,10 +565,10 @@ function formatDate(date: string | null) {
                 <div class="alert alert-info">
                   <span>◎</span>
                   <div>
-                    <p style="font-weight: 700; font-size: 0.9rem; letter-spacing: 0.06em">
+                    <p style="font-weight: 700; font-size: 0.95rem; letter-spacing: 0.06em">
                       EM BREVE
                     </p>
-                    <p style="font-size: 0.85rem; margin-top: 2px">
+                    <p style="font-size: 0.9rem; margin-top: 2px">
                       A integração com gateway de pagamento está sendo configurada. Entre em contato
                       com o administrador para adicionar créditos manualmente.
                     </p>
@@ -579,6 +621,119 @@ function formatDate(date: string | null) {
                     <button class="btn btn-secondary btn-full" disabled>INDISPONÍVEL</button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══ TAB: TRANSAÇÕES ═══════════════════════════════ -->
+          <div v-if="activeTab === 'transactions'" class="tab-content space-y-6">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-header-inner">
+                  <div>
+                    <h2 class="card-title">Histórico de Transações</h2>
+                    <p class="card-subtitle">Registro de movimentações de créditos da sua conta</p>
+                  </div>
+                  <button
+                    class="btn btn-ghost btn-sm"
+                    :disabled="userStore.loading.transactions"
+                    @click="userStore.loadTransactions()"
+                  >
+                    <span class="spinner" v-if="userStore.loading.transactions" />
+                    <span v-else>↺ Atualizar</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Loading -->
+              <div v-if="userStore.loading.transactions" class="empty-state">
+                <span class="spinner" style="width: 22px; height: 22px" />
+                <p style="margin-top: var(--space-3)">Carregando transações...</p>
+              </div>
+
+              <!-- Empty -->
+              <div v-else-if="userStore.transactions.length === 0" class="empty-state">
+                <div class="empty-state-icon">◈</div>
+                <p>Nenhuma transação registrada</p>
+                <p style="font-size: 0.85rem; margin-top: var(--space-1)">
+                  As movimentações de crédito aparecerão aqui
+                </p>
+              </div>
+
+              <!-- Table -->
+              <div v-else class="card-body" style="padding: 0">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width: 44px"></th>
+                      <th>Descrição</th>
+                      <th>Data</th>
+                      <th style="text-align: right">Créditos</th>
+                      <th style="text-align: right">Saldo após</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="tx in userStore.transactions" :key="tx.id">
+                      <!-- Icon -->
+                      <td>
+                        <div
+                          class="tx-icon"
+                          :class="txMeta(tx.type).credit ? 'tx-icon--credit' : 'tx-icon--debit'"
+                        >
+                          {{ txMeta(tx.type).icon }}
+                        </div>
+                      </td>
+
+                      <!-- Description -->
+                      <td>
+                        <div class="tx-label">{{ txMeta(tx.type).label }}</div>
+                        <div v-if="tx.description" class="tx-description">
+                          {{ tx.description }}
+                        </div>
+                      </td>
+
+                      <!-- Date -->
+                      <td class="mono" style="font-size: 0.82rem; color: var(--text-muted)">
+                        {{ formatDateTime(tx.created_at) }}
+                      </td>
+
+                      <!-- Amount -->
+                      <td style="text-align: right">
+                        <span
+                          class="tx-amount"
+                          :class="txMeta(tx.type).credit ? 'tx-amount--credit' : 'tx-amount--debit'"
+                        >
+                          {{ txMeta(tx.type).credit ? '+' : '-' }}{{ tx.amount }}
+                        </span>
+                      </td>
+
+                      <!-- Balance after -->
+                      <td style="text-align: right">
+                        <span class="tx-balance mono">{{ tx.balance_after }}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="tx-legend">
+              <div class="tx-legend-item">
+                <span
+                  class="tx-icon tx-icon--credit"
+                  style="width: 22px; height: 22px; font-size: 0.7rem"
+                  >↑</span
+                >
+                <span>Entrada de créditos</span>
+              </div>
+              <div class="tx-legend-item">
+                <span
+                  class="tx-icon tx-icon--debit"
+                  style="width: 22px; height: 22px; font-size: 0.7rem"
+                  >↓</span
+                >
+                <span>Saída de créditos</span>
               </div>
             </div>
           </div>
@@ -735,15 +890,29 @@ function formatDate(date: string | null) {
 </template>
 
 <style scoped>
-/* ── Page Background ── */
+/* ── Page Background ─────────────────────────────────────────────────────── */
+/*
+  Três camadas:
+  1. background.png — imagem principal, sem repetição, topo
+  2. background_repeat.png — tile que preenche o scroll abaixo da imagem principal
+  3. Gradiente suave que funde a borda inferior de background.png com o tile
+*/
 .page-wrapper,
 .loading-page {
   min-height: 100dvh;
-
-  background:
-    linear-gradient(to bottom, transparent 80%, #090f0b 100%),
-    url('@/assets/background.png') top center / 100% auto no-repeat,
-    #090f0b;
+  background-color: #090f0b;
+  background-image:
+    linear-gradient(to bottom, transparent 55vh, #090f0b calc(55vh + 200px)),
+    url('@/assets/background.png'), url('@/assets/background_repeat.png');
+  background-position:
+    top center,
+    top center,
+    top center;
+  background-repeat: no-repeat, no-repeat, repeat-y;
+  background-size:
+    100% auto,
+    100% auto,
+    100% auto;
 }
 
 .loading-page {
@@ -791,7 +960,7 @@ function formatDate(date: string | null) {
 
 .stat-strip-label {
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -822,7 +991,7 @@ function formatDate(date: string | null) {
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -865,7 +1034,7 @@ function formatDate(date: string | null) {
 .side-nav-header {
   padding: var(--space-3) var(--space-4);
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -881,7 +1050,7 @@ function formatDate(date: string | null) {
   width: 100%;
   padding: var(--space-3) var(--space-4);
   font-family: var(--font-ui);
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -923,7 +1092,7 @@ function formatDate(date: string | null) {
 
 .slc-label {
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -941,7 +1110,7 @@ function formatDate(date: string | null) {
 
 .slc-date {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
   letter-spacing: 0.04em;
 }
@@ -965,9 +1134,10 @@ function formatDate(date: string | null) {
 }
 
 .card-subtitle {
-  font-size: 0.85rem;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
   color: var(--text-muted);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 /* Credit badge */
@@ -983,7 +1153,7 @@ function formatDate(date: string | null) {
 
 .credit-badge-label {
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   color: rgba(200, 164, 52, 0.6);
@@ -1011,7 +1181,7 @@ function formatDate(date: string | null) {
 
 .rpb-label {
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   color: var(--text-muted);
@@ -1045,7 +1215,7 @@ function formatDate(date: string | null) {
 
 .lsb-label {
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1092,7 +1262,7 @@ function formatDate(date: string | null) {
 
 .info-box-title {
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1101,16 +1271,17 @@ function formatDate(date: string | null) {
 }
 
 .info-box-text {
-  font-size: 0.875rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
   color: rgba(200, 164, 52, 0.7);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 /* Inline alerts */
 .alert-inline {
-  font-family: var(--font-ui);
-  font-size: 0.875rem;
-  letter-spacing: 0.04em;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  letter-spacing: 0.01em;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
   border-left: 3px solid;
@@ -1141,7 +1312,7 @@ function formatDate(date: string | null) {
 
 .confirm-label {
   font-family: var(--font-ui);
-  font-size: 0.7rem;
+  font-size: 0.76rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1164,7 +1335,7 @@ function formatDate(date: string | null) {
 
 .loading-label {
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.2em;
@@ -1181,7 +1352,7 @@ function formatDate(date: string | null) {
 
 .resale-hiw-title {
   font-family: var(--font-ui);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -1215,7 +1386,7 @@ function formatDate(date: string | null) {
   border: 1px solid rgba(200, 164, 52, 0.3);
   color: var(--amber);
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -1235,7 +1406,7 @@ function formatDate(date: string | null) {
 
 .resale-hiw-step-label {
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1244,7 +1415,8 @@ function formatDate(date: string | null) {
 }
 
 .resale-hiw-step-text {
-  font-size: 0.85rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
   color: var(--text-secondary);
   line-height: 1.55;
 }
@@ -1274,7 +1446,7 @@ function formatDate(date: string | null) {
 
 .resale-cost-label {
   font-family: var(--font-ui);
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1290,7 +1462,7 @@ function formatDate(date: string | null) {
 }
 
 .resale-cost-unit {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-family: var(--font-ui);
   color: var(--text-muted);
   font-weight: 400;
@@ -1311,7 +1483,8 @@ function formatDate(date: string | null) {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
   margin-top: var(--space-3);
-  font-size: 0.85rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
   line-height: 1.5;
 }
 
@@ -1329,7 +1502,87 @@ function formatDate(date: string | null) {
 
 .modal-policy-icon {
   flex-shrink: 0;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   margin-top: 1px;
+}
+
+/* ── Transactions ──────────────────────────────────────────────────────────── */
+.tx-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.tx-icon--credit {
+  background: var(--green-dim);
+  border: 1px solid rgba(58, 170, 82, 0.3);
+  color: var(--green-light);
+}
+
+.tx-icon--debit {
+  background: var(--red-dim);
+  border: 1px solid rgba(224, 68, 68, 0.25);
+  color: var(--red);
+}
+
+.tx-label {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.tx-description {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.3;
+}
+
+.tx-amount {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.tx-amount--credit {
+  color: var(--green-light);
+}
+
+.tx-amount--debit {
+  color: var(--red);
+}
+
+.tx-balance {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.tx-legend {
+  display: flex;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-surface);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+}
+
+.tx-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 </style>

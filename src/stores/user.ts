@@ -29,6 +29,23 @@ export interface LicensePlan {
   price: number
 }
 
+export interface Transaction {
+  id: string
+  type:
+    | 'admin_credit_add'
+    | 'admin_credit_remove'
+    | 'pix_payment'
+    | 'key_revert'
+    | 'key_purchase'
+    | 'license_extension'
+    | 'key_activation'
+    | string
+  amount: number
+  balance_after: number
+  description: string | null
+  created_at: string
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 export const useUserStore = defineStore('user', () => {
@@ -39,11 +56,13 @@ export const useUserStore = defineStore('user', () => {
   const keys = ref<Key[]>([])
   const resalePlan = ref<ResalePlan | null>(null)
   const licensePlans = ref<LicensePlan[]>([])
+  const transactions = ref<Transaction[]>([])
 
   const loading = ref({
     keys: false,
     resalePlan: false,
     licensePlans: false,
+    transactions: false,
     generateKey: false,
     revertKey: null as string | null,
     buyDays: null as number | null,
@@ -119,6 +138,19 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  async function loadTransactions(): Promise<void> {
+    loading.value.transactions = true
+    try {
+      const result = await userRpc<{ status: string; transactions: Transaction[] }>(
+        'get_user_transactions',
+        {},
+      )
+      if (result.ok) transactions.value = result.data.transactions ?? []
+    } finally {
+      loading.value.transactions = false
+    }
+  }
+
   async function generateKey(): Promise<{ ok: true; key: string } | { ok: false; error: string }> {
     loading.value.generateKey = true
     try {
@@ -179,6 +211,7 @@ export const useUserStore = defineStore('user', () => {
     keys,
     resalePlan,
     licensePlans,
+    transactions,
     loading,
     profile,
     daysLeft,
@@ -187,6 +220,7 @@ export const useUserStore = defineStore('user', () => {
     loadKeys,
     loadResalePlan,
     loadLicensePlans,
+    loadTransactions,
     generateKey,
     revertKey,
     buyDays,
