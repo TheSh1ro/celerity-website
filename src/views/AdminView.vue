@@ -1,27 +1,20 @@
 <!-- AdminView.vue -->
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { supabase } from '@/lib/supabase'
+import { ref, watch } from 'vue'
 import { useAdminStore, type User } from '@/stores/admin'
 import { useToastStore } from '@/stores/toast'
-import { useUserStore } from '@/stores/user'
 
 const adminStore = useAdminStore()
 const toastStore = useToastStore()
-const userStore = useUserStore()
-
-const authLoading = ref(true)
-const isAdmin = ref(false)
-const loginEmail = ref('')
-const loginPassword = ref('')
-const loginLoading = ref(false)
-const loginError = ref('')
 
 const showResaleModal = ref(false)
 const showCreditsModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
 const showLogoutModal = ref(false)
+
+const loginEmail = ref('')
+const loginPassword = ref('')
 
 const resaleForm = ref({ days: 30, price: 20, is_active: true })
 const creditsForm = ref({
@@ -40,17 +33,11 @@ const editForm = ref({
   isActive: true,
 })
 
-onMounted(async () => {
-  await checkSession()
-})
-
-async function checkSession() {
-  authLoading.value = true
-  const { data } = await supabase.auth.getSession()
-  isAdmin.value = data.session?.user?.app_metadata?.['is_admin'] === true
-  authLoading.value = false
-
-  if (isAdmin.value) {
+// Carrega dados assim que a sessão Supabase estiver ativa
+watch(
+  () => adminStore.supabaseAuthed,
+  async (authed) => {
+    if (!authed) return
     await Promise.all([adminStore.loadUsers(), adminStore.loadResalePlan()])
     if (adminStore.resalePlan) {
       resaleForm.value = {
@@ -59,46 +46,20 @@ async function checkSession() {
         is_active: adminStore.resalePlan.is_active,
       }
     }
-  }
-}
+  },
+  { immediate: true },
+)
 
 async function adminLogin() {
-  loginError.value = ''
   if (!loginEmail.value || !loginPassword.value) {
-    loginError.value = 'Preencha e-mail e senha.'
+    adminStore.error = 'Preencha e-mail e senha.'
     return
   }
-
-  loginLoading.value = true
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: loginEmail.value,
-      password: loginPassword.value,
-    })
-
-    if (error) {
-      loginError.value = error.message
-      return
-    }
-
-    if (data.user?.app_metadata?.['is_admin'] !== true) {
-      await supabase.auth.signOut()
-      loginError.value = 'Acesso negado. Conta sem permissão de admin.'
-      return
-    }
-
-    isAdmin.value = true
-    await Promise.all([adminStore.loadUsers(), adminStore.loadResalePlan()])
-  } finally {
-    loginLoading.value = false
+  const ok = await adminStore.login(loginEmail.value, loginPassword.value)
+  if (ok) {
+    loginEmail.value = ''
+    loginPassword.value = ''
   }
-}
-
-async function logout() {
-  await supabase.auth.signOut()
-  isAdmin.value = false
-  loginEmail.value = ''
-  loginPassword.value = ''
 }
 
 async function saveResalePlan() {
@@ -107,12 +68,11 @@ async function saveResalePlan() {
     resaleForm.value.price,
     resaleForm.value.is_active,
   )
-
-  if (result.success) {
+  if (result.ok) {
     toastStore.success('Plano de revenda atualizado!')
     showResaleModal.value = false
   } else {
-    toastStore.error(result.error || 'Erro ao salvar plano')
+    toastStore.error(result.error)
   }
 }
 
@@ -140,13 +100,13 @@ async function saveCredits() {
     creditsForm.value.operation,
   )
 
-  if (result.success) {
+  if (result.ok) {
     toastStore.success(
       `${amount} créditos ${creditsForm.value.operation === 'add' ? 'adicionados' : 'removidos'} para ${creditsForm.value.username}`,
     )
     showCreditsModal.value = false
   } else {
-    toastStore.error(result.error || 'Erro ao ajustar créditos')
+    toastStore.error(result.error)
   }
 }
 
@@ -183,8 +143,7 @@ async function saveEdit() {
   }
 
   const result = await adminStore.updateUser(editForm.value.id, patch)
-
-  if (result.success) {
+  if (result.ok) {
     toastStore.success('Usuário atualizado!')
     showEditModal.value = false
   }
@@ -215,9 +174,8 @@ async function confirmLogout() {
   showLogoutModal.value = false
 }
 
-async function expandUser(user: User) {
+function expandUser(user: User) {
   adminStore.selectUser(user)
-  await userStore.loadKeys()
 }
 
 function formatDate(iso: string | null) {
@@ -234,12 +192,12 @@ function daysLeft(iso: string | null) {
 
 <template>
   <!-- ── ADMIN LOGIN ──────────────────────────────────────────── -->
-  <div class="admin-login-page" v-if="!authLoading && !isAdmin">
+  <div class="admin-login-page" v-if="!adminStore.supabaseAuthed">
     <div class="admin-login-wrap">
       <div class="admin-login-brand">
         <div class="admin-logo">◈</div>
         <div>
-          <h1 class="admin-brand-title">DayZ Bot</h1>
+          <h1 class="admin-brand-title">Administração</h1>
           <p class="admin-brand-sub">PAINEL DE CONTROLE // ACESSO RESTRITO</p>
         </div>
       </div>
@@ -252,11 +210,11 @@ function daysLeft(iso: string | null) {
         </div>
 
         <div
-          v-if="loginError"
+          v-if="adminStore.error"
           class="alert alert-error"
           style="margin: var(--space-5); margin-bottom: 0"
         >
-          <span>⚠</span> {{ loginError }}
+          <span>⚠</span> {{ adminStore.error }}
         </div>
 
         <form @submit.prevent="adminLogin" class="admin-login-form">
@@ -282,30 +240,16 @@ function daysLeft(iso: string | null) {
             />
           </div>
 
-          <button type="submit" class="btn btn-primary btn-lg w-full" :disabled="loginLoading">
-            <span class="spinner" v-if="loginLoading" />
+          <button
+            type="submit"
+            class="btn btn-primary btn-lg w-full"
+            :disabled="adminStore.loading.auth"
+          >
+            <span class="spinner" v-if="adminStore.loading.auth" />
             <span v-else>▶ ACESSAR PAINEL</span>
           </button>
         </form>
       </div>
-    </div>
-  </div>
-
-  <!-- ── LOADING ── -->
-  <div v-else-if="authLoading" class="loading-page">
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem">
-      <span class="spinner" style="width: 32px; height: 32px" />
-      <p
-        style="
-          font-family: var(--font-ui);
-          font-size: 0.7rem;
-          text-transform: uppercase;
-          letter-spacing: 0.2em;
-          color: var(--text-muted);
-        "
-      >
-        VERIFICANDO CREDENCIAIS
-      </p>
     </div>
   </div>
 
@@ -314,11 +258,11 @@ function daysLeft(iso: string | null) {
     <header class="app-header">
       <div class="container header-content">
         <div class="logo">
-          <div class="logo-icon">◈</div>
-          <span>DayZ Bot</span>
+          <img src="/src/assets/logo.png" class="logo-icon" />
+          <span>Painel administrativo</span>
           <span class="admin-badge">ADMIN</span>
         </div>
-        <button class="btn btn-ghost btn-sm" @click="logout">⏻ Sair</button>
+        <button class="btn btn-ghost" @click="adminStore.logout">Sair</button>
       </div>
     </header>
 
@@ -440,7 +384,10 @@ function daysLeft(iso: string | null) {
               </tr>
 
               <template v-for="user in adminStore.filteredUsers" :key="user.id">
-                <tr class="user-row" @click="expandUser(user)">
+                <tr
+                  class="user-row"
+                  @click="adminStore.selectedUser ? adminStore.closeUserPanel() : expandUser(user)"
+                >
                   <td>
                     <span class="mono" style="font-weight: 600; color: var(--text-primary)">
                       {{ user.username }}
@@ -503,24 +450,38 @@ function daysLeft(iso: string | null) {
                       </div>
 
                       <div
-                        v-if="userStore.keys.length === 0"
+                        v-if="adminStore.loading.userKeys"
+                        class="empty-state"
+                        style="padding: var(--space-6)"
+                      >
+                        <span class="spinner" />
+                        <p>Carregando keys...</p>
+                      </div>
+
+                      <div
+                        v-else-if="adminStore.selectedUserKeys.length === 0"
                         class="empty-state"
                         style="padding: var(--space-8)"
                       >
                         <p>Nenhuma key gerada por este operador.</p>
                       </div>
+
                       <table v-else class="table-sm">
                         <thead>
                           <tr>
                             <th>Key</th>
+                            <th>Duração</th>
                             <th>Criada em</th>
                             <th>Status</th>
                           </tr>
                         </thead>
                         <tbody>
-                          <tr v-for="key in userStore.keys" :key="key.id">
+                          <tr v-for="key in adminStore.selectedUserKeys" :key="key.id">
                             <td class="mono" style="font-size: 0.82rem; color: var(--amber)">
                               {{ key.key }}
+                            </td>
+                            <td class="mono" style="font-size: 0.82rem">
+                              {{ key.duration_days }}d
                             </td>
                             <td class="mono" style="font-size: 0.82rem">
                               {{ formatDate(key.created_at) }}
@@ -565,7 +526,8 @@ function daysLeft(iso: string | null) {
               type="number"
               class="form-input"
               min="0"
-              step="0.01"
+              step="1"
+              @input="resaleForm.price = Math.trunc(resaleForm.price)"
             />
           </div>
           <div class="form-group">
@@ -897,7 +859,7 @@ function daysLeft(iso: string | null) {
 /* ── Admin Dashboard ── */
 .admin-badge {
   font-family: var(--font-ui);
-  font-size: 0.6rem;
+  font-size: 1rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
