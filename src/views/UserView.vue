@@ -1,12 +1,16 @@
 <!-- UserView.vue -->
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
+import type { Key } from '@/stores/user'
 
-const router = useRouter()
+interface Plan {
+  days: number
+  price: number
+}
+
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const toastStore = useToastStore()
@@ -16,8 +20,9 @@ const activeTab = ref<'license' | 'resale' | 'credits'>('license')
 const showRevertModal = ref(false)
 const showBuyModal = ref(false)
 const showGeneratedKeyModal = ref(false)
-const selectedKey = ref<any>(null)
-const selectedPlan = ref<any>(null)
+const showConfirmGenerateModal = ref(false)
+const selectedKey = ref<Key | null>(null)
+const selectedPlan = ref<Plan | null>(null)
 const generatedKey = ref('')
 
 const canGenerateKey = computed(() => {
@@ -26,11 +31,7 @@ const canGenerateKey = computed(() => {
 })
 
 onMounted(async () => {
-  if (!authStore.token) {
-    router.push('/')
-    return
-  }
-  await Promise.all([userStore.loadProfile(), userStore.loadKeys(), userStore.loadResalePlan()])
+  await Promise.all([userStore.loadKeys(), userStore.loadResalePlan()])
 })
 
 async function handleGenerateKey() {
@@ -44,7 +45,7 @@ async function handleGenerateKey() {
   }
 }
 
-function confirmRevert(key: any) {
+function confirmRevert(key: Key) {
   selectedKey.value = key
   showRevertModal.value = true
 }
@@ -60,7 +61,7 @@ async function handleRevert() {
   }
 }
 
-function confirmBuy(plan: any) {
+function confirmBuy(plan: Plan) {
   selectedPlan.value = plan
   showBuyModal.value = true
 }
@@ -81,13 +82,13 @@ function copyKey(key: string) {
   toastStore.info('Key copiada!')
 }
 
-function keyStatusBadge(key: any) {
+function keyStatusBadge(key: Key) {
   if (key.reverted) return 'badge-neutral'
   if (key.used) return 'badge-warning'
   return 'badge-success'
 }
 
-function keyStatusLabel(key: any) {
+function keyStatusLabel(key: Key) {
   if (key.reverted) return 'Revertida'
   if (key.used) return 'Usada'
   return 'Disponível'
@@ -105,8 +106,8 @@ function formatDate(date: string | null) {
     <header class="app-header">
       <div class="container header-content">
         <div class="logo">
-          <img src="/src/assets/logo.png" class="logo-icon"></img>
-          <span>DayZ Bot</span>
+          <img src="/src/assets/logo.png" class="logo-icon" />
+          <span>STONE</span>
         </div>
 
         <nav class="header-nav">
@@ -129,7 +130,7 @@ function formatDate(date: string | null) {
             <span class="pill-label">Soldado</span>
             <span class="pill-value mono">{{ userStore.profile.username }}</span>
           </div>
-          <button class="btn btn-ghost btn-sm" @click="authStore.logout">⏻ Sair</button>
+          <button class="btn btn-ghost" @click="authStore.logout">Sair</button>
         </nav>
       </div>
     </header>
@@ -261,11 +262,6 @@ function formatDate(date: string | null) {
                   <h2 class="card-title">Estender Licença</h2>
                   <p class="card-subtitle">Adicione dias de acesso usando seus créditos</p>
                 </div>
-                <div class="credit-badge">
-                  <span class="credit-badge-label">SALDO</span>
-                  <span class="credit-badge-value">{{ userStore.profile?.credits }}</span>
-                  <span class="credit-badge-unit">créditos</span>
-                </div>
               </div>
             </div>
             <div class="card-body">
@@ -319,17 +315,108 @@ function formatDate(date: string | null) {
                 </div>
               </div>
               <div class="card-body">
-                <!-- Info box -->
-                <div class="info-box">
-                  <span class="info-box-icon">ℹ</span>
-                  <div class="info-box-content">
-                    <p class="info-box-title">COMO FUNCIONA A REVENDA</p>
-                    <p class="info-box-text">
-                      Gere uma key usando seus créditos, venda para seu cliente por fora do sistema
-                      definindo seu próprio preço, e o cliente ativa a key no login criando sua
-                      própria conta. Keys não usadas podem ser revertidas para reembolso dos
-                      créditos.
-                    </p>
+                <!-- How it works - expanded steps -->
+                <div class="resale-how-it-works">
+                  <p class="resale-hiw-title">⟳ COMO FUNCIONA A REVENDA</p>
+                  <div class="resale-hiw-steps">
+                    <div class="resale-hiw-step">
+                      <div class="resale-hiw-step-num">1</div>
+                      <div class="resale-hiw-step-body">
+                        <p class="resale-hiw-step-label">GERE A KEY</p>
+                        <p class="resale-hiw-step-text">
+                          Clique em "Gerar Nova Key". Serão descontados
+                          <strong style="color: var(--amber)"
+                            >{{ userStore.resalePlan?.price }} créditos</strong
+                          >
+                          da sua conta e uma key de
+                          <strong style="color: var(--green)"
+                            >{{ userStore.resalePlan?.days }} dias</strong
+                          >
+                          será criada para você.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="resale-hiw-connector"></div>
+                    <div class="resale-hiw-step">
+                      <div class="resale-hiw-step-num">2</div>
+                      <div class="resale-hiw-step-body">
+                        <p class="resale-hiw-step-label">VENDA PELO SEU PREÇO</p>
+                        <p class="resale-hiw-step-text">
+                          Repasse a key para seu cliente cobrando o valor de acordo com a sua
+                          estratégia de venda. Você tem controle total sobre o seu preço.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="resale-hiw-connector"></div>
+                    <div class="resale-hiw-step">
+                      <div class="resale-hiw-step-num">⚠</div>
+                      <div class="resale-hiw-step-body">
+                        <p class="resale-hiw-step-label">VENDA PELO SEU PREÇO</p>
+                        <p class="resale-hiw-step-text">
+                          Você lida com a venda do inicio ao fim, não entregue a chave antes de
+                          receber o pagamento.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="resale-hiw-connector"></div>
+                    <div class="resale-hiw-step">
+                      <div class="resale-hiw-step-num">3</div>
+                      <div class="resale-hiw-step-body">
+                        <p class="resale-hiw-step-label">CLIENTE ATIVA A CONTA</p>
+                        <p class="resale-hiw-step-text">
+                          O cliente usa a key na tela de login para criar sua própria conta e ter
+                          acesso ao software pelo período contratado.
+                        </p>
+                      </div>
+                    </div>
+                    <div class="resale-hiw-connector"></div>
+                    <div class="resale-hiw-step">
+                      <div class="resale-hiw-step-num resale-hiw-step-num--warning">!</div>
+                      <div class="resale-hiw-step-body">
+                        <p class="resale-hiw-step-label" style="color: var(--orange)">
+                          REEMBOLSO E CANCELAMENTO
+                        </p>
+                        <p class="resale-hiw-step-text">
+                          Se a key <strong style="color: var(--green)">não foi usada</strong>, você
+                          pode revertê-la a qualquer momento pela tabela abaixo e os créditos serão
+                          devolvidos integralmente.
+                          <br />
+                          <span style="color: var(--red)"
+                            >Keys já utilizadas não têm reembolso,</span
+                          >
+                          a ativação é irreversível.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Credit cost summary -->
+                <div class="resale-cost-row">
+                  <div class="resale-cost-item">
+                    <span class="resale-cost-label">CUSTO POR KEY</span>
+                    <span class="resale-cost-value"
+                      >{{ userStore.resalePlan?.price }}
+                      <span class="resale-cost-unit">créditos</span></span
+                    >
+                  </div>
+                  <div class="resale-cost-divider"></div>
+                  <div class="resale-cost-item">
+                    <span class="resale-cost-label">DURAÇÃO</span>
+                    <span class="resale-cost-value"
+                      >{{ userStore.resalePlan?.days }}
+                      <span class="resale-cost-unit">dias</span></span
+                    >
+                  </div>
+                  <div class="resale-cost-divider"></div>
+                  <div class="resale-cost-item">
+                    <span class="resale-cost-label">SEUS CRÉDITOS</span>
+                    <span
+                      class="resale-cost-value"
+                      :style="{ color: canGenerateKey ? 'var(--green)' : 'var(--red)' }"
+                    >
+                      {{ userStore.profile?.credits }}
+                    </span>
                   </div>
                 </div>
 
@@ -337,10 +424,9 @@ function formatDate(date: string | null) {
                   <button
                     class="btn btn-primary btn-lg"
                     :disabled="!canGenerateKey || userStore.loading.generateKey"
-                    @click="handleGenerateKey"
+                    @click="showConfirmGenerateModal = true"
                   >
-                    <span class="spinner" v-if="userStore.loading.generateKey" />
-                    <span v-else>+ GERAR NOVA KEY</span>
+                    + GERAR NOVA KEY
                   </button>
                 </div>
 
@@ -400,7 +486,7 @@ function formatDate(date: string | null) {
                         </span>
                       </td>
                       <td>
-                        <div class="flex gap-2">
+                        <div v-if="!key.reverted" class="flex gap-2">
                           <button class="btn btn-ghost btn-sm" @click="copyKey(key.key)">
                             Copiar
                           </button>
@@ -413,7 +499,6 @@ function formatDate(date: string | null) {
                             <span class="spinner" v-if="userStore.loading.revertKey === key.id" />
                             <span v-else>Reverter</span>
                           </button>
-                          <span v-else class="text-muted text-sm">—</span>
                         </div>
                       </td>
                     </tr>
@@ -498,6 +583,57 @@ function formatDate(date: string | null) {
       </div>
       <!-- end dash-layout -->
     </main>
+
+    <!-- ── MODAL: Confirmar Geração de Key ── -->
+    <div
+      v-if="showConfirmGenerateModal"
+      class="modal-overlay"
+      @click.self="showConfirmGenerateModal = false"
+    >
+      <div class="modal">
+        <div class="modal-header">
+          <h3 class="modal-title">Confirmar Geração de Key</h3>
+        </div>
+        <div class="modal-body">
+          <p style="color: var(--text-secondary); margin-bottom: var(--space-4)">
+            Você está prestes a gerar uma key de revenda com plano inicial de
+            <strong style="color: var(--text-primary)">{{ userStore.resalePlan?.days }} dias</strong
+            >.
+          </p>
+          <div class="confirm-row">
+            <span class="confirm-label">CRÉDITOS DESCONTADOS</span>
+            <span class="confirm-value mono">{{ userStore.resalePlan?.price }} créditos</span>
+          </div>
+
+          <!-- Revert policy info -->
+          <div class="modal-policy-box modal-policy-ok">
+            <span class="modal-policy-icon">✓</span>
+            <p>
+              Key <strong>não utilizada</strong> pode ser revertida a qualquer momento, seus
+              créditos serão devolvidos integralmente.
+            </p>
+          </div>
+          <div class="modal-policy-box modal-policy-warn">
+            <span class="modal-policy-icon">⚠</span>
+            <p>
+              Key <strong>já utilizada não tem reembolso</strong>. Após o cliente ativar a key, a
+              operação é irreversível.
+            </p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showConfirmGenerateModal = false">Cancelar</button>
+          <button
+            class="btn btn-primary"
+            :disabled="userStore.loading.generateKey"
+            @click="((showConfirmGenerateModal = false), handleGenerateKey())"
+          >
+            <span class="spinner" v-if="userStore.loading.generateKey" />
+            <span v-else>Confirmar e Gerar</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- ── MODAL: Reverter Key ── -->
     <div v-if="showRevertModal" class="modal-overlay" @click.self="showRevertModal = false">
@@ -598,12 +734,12 @@ function formatDate(date: string | null) {
 /* ── Page Background ── */
 .page-wrapper,
 .loading-page {
-  background-color: #090f0b;
-  background-image: url('@/assets/dayz_login_bg2.png');
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  min-height: 100vh;
+  min-height: 100dvh;
+
+  background:
+    linear-gradient(to bottom, transparent 80%, #090f0b 100%),
+    url('@/assets/background.png') top center / 100% auto no-repeat,
+    #090f0b;
 }
 
 .loading-page {
@@ -1031,6 +1167,165 @@ function formatDate(date: string | null) {
   color: var(--text-muted);
 }
 
-.tab-content {
+/* ── Resale How It Works ── */
+.resale-how-it-works {
+  background: var(--bg-void);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+  padding: var(--space-5);
+}
+
+.resale-hiw-title {
+  font-family: var(--font-ui);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--amber);
+  margin-bottom: var(--space-4);
+}
+
+.resale-hiw-steps {
+  display: flex;
+  flex-direction: column;
+}
+
+.resale-hiw-connector {
+  width: 1px;
+  height: 16px;
+  background: var(--wire);
+  margin-left: 14px;
+}
+
+.resale-hiw-step {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.resale-hiw-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--amber-dim);
+  border: 1px solid rgba(200, 164, 52, 0.3);
+  color: var(--amber);
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.resale-hiw-step-num--warning {
+  background: rgba(220, 100, 60, 0.12);
+  border-color: rgba(220, 100, 60, 0.3);
+  color: var(--orange);
+}
+
+.resale-hiw-step-body {
+  padding-bottom: 2px;
+}
+
+.resale-hiw-step-label {
+  font-family: var(--font-ui);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.resale-hiw-step-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+/* ── Resale Cost Row ── */
+.resale-cost-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-5);
+  margin-top: var(--space-4);
+}
+
+.resale-cost-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--space-5);
+}
+
+.resale-cost-item:first-child {
+  padding-left: 0;
+}
+
+.resale-cost-label {
+  font-family: var(--font-ui);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.resale-cost-value {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--amber);
+  line-height: 1;
+}
+
+.resale-cost-unit {
+  font-size: 0.75rem;
+  font-family: var(--font-ui);
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.resale-cost-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--wire);
+  flex-shrink: 0;
+}
+
+/* ── Modal policy boxes ── */
+.modal-policy-box {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-3);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.modal-policy-ok {
+  background: rgba(60, 180, 100, 0.08);
+  border: 1px solid rgba(60, 180, 100, 0.2);
+  color: rgba(120, 200, 140, 0.85);
+}
+
+.modal-policy-warn {
+  background: var(--red-dim);
+  border: 1px solid rgba(200, 80, 80, 0.25);
+  color: #e8a0a0;
+}
+
+.modal-policy-icon {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  margin-top: 1px;
 }
 </style>
