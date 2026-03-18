@@ -1,48 +1,69 @@
-# stone-today
+# Visão Geral do Projeto
 
-This template should help get you started developing with Vue 3 in Vite.
+**Última atualização:** 18/03/2026
 
-## Recommended IDE Setup
+---
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## Descrição
 
-## Recommended Browser Setup
+Sistema completo de licenciamento para um bot de automação desktop. O produto central é um aplicativo Python que automatiza ações repetitivas em um jogo de PC. O acesso ao app é controlado por licença, sem licença ativa, o app não abre.
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+O modelo de negócio tem dois caminhos:
 
-## Type Support for `.vue` Imports in TS
+- **Uso próprio:** O usuário compra créditos via Pix no site e usa os créditos para estender sua própria licença.
+- **Revenda:** O usuário compra créditos, gera keys de licença a preço promocional e as vende por fora do sistema (grupos, Pix direto, etc). O cliente final ativa a key no site e cria sua própria conta.
 
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
+Qualquer conta pode revender, não há hierarquia. Se uma key gerada não for usada, o revendedor pode revertê-la e recuperar os créditos.
 
-## Customize configuration
+---
 
-See [Vite Configuration Reference](https://vite.dev/config/).
+## App Python (Desktop)
 
-## Project Setup
+Bot de automação para jogo de PC. Controla o mouse via sequências temporizadas, com múltiplos modos de operação. A interface é feita em tkinter.
 
-```sh
-npm install
-```
+O acesso ao bot é controlado por licença em dias. Ao abrir, o app verifica se o usuário tem licença ativa. Sem licença, a execução é bloqueada.
 
-### Compile and Hot-Reload for Development
+---
 
-```sh
-npm run dev
-```
+## Sistema de Vendas - Vue (Usuário Final)
 
-### Type-Check, Compile and Minify for Production
+Painel web usado pelo usuário para gerenciar sua conta.
 
-```sh
-npm run build
-```
+### Login e Ativação
 
-### Lint with [ESLint](https://eslint.org/)
+- Usuários existentes acessam com username e senha.
+- Novos usuários chegam via key de revenda, informam a key, criam suas credenciais e já recebem acesso.
 
-```sh
-npm run lint
-```
+### Dashboard
+
+Após login, o usuário pode:
+
+- Ver seu saldo de créditos e o prazo da licença.
+- **Comprar créditos** via Pix para usar no sistema.
+- **Estender a licença** usando créditos, escolhendo entre planos de dias disponíveis.
+- **Gerar keys de revenda** usando créditos, com preço promocional em relação ao uso próprio.
+- **Gerenciar keys geradas**: ver status de cada key (disponível, usada ou revertida) e reverter as não utilizadas para recuperar créditos.
+
+---
+
+## Admin - Vue (Painel Administrativo)
+
+Painel separado, acessível apenas por administradores.
+
+O admin pode:
+
+- Visualizar e buscar todos os usuários.
+- Editar dados de usuários: senha, prazo de licença e status da conta.
+- Adicionar ou remover créditos de qualquer usuário.
+- Configurar o plano de revenda: duração, preço e se está ativo.
+- Gerar keys gratuitamente, sem débito de créditos.
+- Forçar logout de usuários.
+
+---
+
+## Stack
+
+- **App desktop:** Python
+- **Painel web (usuário e admin):** Vue 3
+- **Backend / banco de dados:** Supabase (PostgreSQL)
+- **Pagamentos:** Pix: gateway a ser definido
