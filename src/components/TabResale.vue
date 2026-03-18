@@ -9,6 +9,7 @@ const userStore = useUserStore()
 const toastStore = useToastStore()
 
 const showRevertModal = ref(false)
+const howItWorksOpen = ref(false)
 const showGeneratedKeyModal = ref(false)
 const showConfirmGenerateModal = ref(false)
 const selectedKey = ref<Key | null>(null)
@@ -89,70 +90,79 @@ async function handleGenerateKey() {
       </div>
       <div class="card-body">
         <!-- How it works -->
-        <div class="resale-how-it-works">
-          <p class="resale-hiw-title">⟳ COMO FUNCIONA A REVENDA</p>
-          <div class="resale-hiw-steps">
-            <div class="resale-hiw-step">
-              <div class="resale-hiw-step-num">1</div>
-              <div class="resale-hiw-step-body">
-                <p class="resale-hiw-step-label">GERE A KEY</p>
-                <p class="resale-hiw-step-text">
-                  Clique em "Gerar Nova Key". Serão descontados
-                  <strong style="color: var(--amber)">{{ userStore.resalePlan?.price }} créditos</strong>
-                  da sua conta e uma key de
-                  <strong style="color: var(--green)">{{ userStore.resalePlan?.days }} dias</strong>
-                  será criada para você.
-                </p>
+        <div class="resale-how-it-works" :class="{ 'is-open': howItWorksOpen }">
+          <button class="resale-hiw-header" @click="howItWorksOpen = !howItWorksOpen">
+            <span class="resale-hiw-title">⟳ COMO FUNCIONA A REVENDA</span>
+            <span class="resale-hiw-chevron" :class="{ 'is-rotated': howItWorksOpen }">▾</span>
+          </button>
+          <div class="resale-hiw-body" v-show="howItWorksOpen">
+            <div class="resale-hiw-steps">
+              <div class="resale-hiw-step">
+                <div class="resale-hiw-step-num">1</div>
+                <div class="resale-hiw-step-body">
+                  <p class="resale-hiw-step-label">GERE A KEY</p>
+                  <p class="resale-hiw-step-text">
+                    Clique em "Gerar Nova Key". Serão descontados
+                    <strong style="color: var(--amber)"
+                      >{{ userStore.resalePlan?.price }} créditos</strong
+                    >
+                    da sua conta e uma key de
+                    <strong style="color: var(--green)"
+                      >{{ userStore.resalePlan?.days }} dias</strong
+                    >
+                    será criada para você.
+                  </p>
+                </div>
               </div>
-            </div>
-            <div class="resale-hiw-connector"></div>
-            <div class="resale-hiw-step">
-              <div class="resale-hiw-step-num">2</div>
-              <div class="resale-hiw-step-body">
-                <p class="resale-hiw-step-label">VENDA PELO SEU PREÇO</p>
-                <p class="resale-hiw-step-text">
-                  Repasse a key para seu cliente cobrando o valor de acordo com a sua estratégia de
-                  venda. Você tem controle total sobre o seu preço.
-                </p>
+              <div class="resale-hiw-connector"></div>
+              <div class="resale-hiw-step">
+                <div class="resale-hiw-step-num">2</div>
+                <div class="resale-hiw-step-body">
+                  <p class="resale-hiw-step-label">VENDA PELO SEU PREÇO</p>
+                  <p class="resale-hiw-step-text">
+                    Repasse a key para seu cliente cobrando o valor de acordo com a sua estratégia
+                    de venda. Você tem controle total sobre o seu preço.
+                  </p>
+                </div>
               </div>
-            </div>
-            <div class="resale-hiw-connector"></div>
-            <div class="resale-hiw-step">
-              <div class="resale-hiw-step-num">⚠</div>
-              <div class="resale-hiw-step-body">
-                <p class="resale-hiw-step-label">VENDA PELO SEU PREÇO</p>
-                <p class="resale-hiw-step-text">
-                  Você lida com a venda do inicio ao fim, não entregue a chave antes de receber o
-                  pagamento.
-                </p>
+              <div class="resale-hiw-connector"></div>
+              <div class="resale-hiw-step">
+                <div class="resale-hiw-step-num">⚠</div>
+                <div class="resale-hiw-step-body">
+                  <p class="resale-hiw-step-label">VENDA PELO SEU PREÇO</p>
+                  <p class="resale-hiw-step-text">
+                    Você lida com a venda do inicio ao fim, não entregue a chave antes de receber o
+                    pagamento.
+                  </p>
+                </div>
               </div>
-            </div>
-            <div class="resale-hiw-connector"></div>
-            <div class="resale-hiw-step">
-              <div class="resale-hiw-step-num">3</div>
-              <div class="resale-hiw-step-body">
-                <p class="resale-hiw-step-label">CLIENTE ATIVA A CONTA</p>
-                <p class="resale-hiw-step-text">
-                  O cliente usa a key na tela de login para criar sua própria conta e ter acesso ao
-                  software pelo período contratado.
-                </p>
+              <div class="resale-hiw-connector"></div>
+              <div class="resale-hiw-step">
+                <div class="resale-hiw-step-num">3</div>
+                <div class="resale-hiw-step-body">
+                  <p class="resale-hiw-step-label">CLIENTE ATIVA A CONTA</p>
+                  <p class="resale-hiw-step-text">
+                    O cliente usa a key na tela de login para criar sua própria conta e ter acesso
+                    ao software pelo período contratado.
+                  </p>
+                </div>
               </div>
-            </div>
-            <div class="resale-hiw-connector"></div>
-            <div class="resale-hiw-step">
-              <div class="resale-hiw-step-num resale-hiw-step-num--warning">!</div>
-              <div class="resale-hiw-step-body">
-                <p class="resale-hiw-step-label" style="color: var(--orange)">
-                  REEMBOLSO E CANCELAMENTO
-                </p>
-                <p class="resale-hiw-step-text">
-                  Se a key <strong style="color: var(--green)">não foi usada</strong>, você pode
-                  revertê-la a qualquer momento pela tabela abaixo e os créditos serão devolvidos
-                  integralmente.
-                  <br />
-                  <span style="color: var(--red)">Keys já utilizadas não têm reembolso,</span>
-                  a ativação é irreversível.
-                </p>
+              <div class="resale-hiw-connector"></div>
+              <div class="resale-hiw-step">
+                <div class="resale-hiw-step-num resale-hiw-step-num--warning">!</div>
+                <div class="resale-hiw-step-body">
+                  <p class="resale-hiw-step-label" style="color: var(--orange)">
+                    REEMBOLSO E CANCELAMENTO
+                  </p>
+                  <p class="resale-hiw-step-text">
+                    Se a key <strong style="color: var(--green)">não foi usada</strong>, você pode
+                    revertê-la a qualquer momento pela tabela abaixo e os créditos serão devolvidos
+                    integralmente.
+                    <br />
+                    <span style="color: var(--red)">Keys já utilizadas não têm reembolso,</span>
+                    a ativação é irreversível.
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -396,7 +406,45 @@ async function handleGenerateKey() {
   background: var(--bg-void);
   border: 1px solid var(--wire);
   border-radius: var(--radius-sm);
-  padding: var(--space-5);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.resale-how-it-works.is-open {
+  border-color: rgba(200, 164, 52, 0.35);
+}
+
+.resale-hiw-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  gap: var(--space-3);
+  transition: background 0.15s;
+}
+
+.resale-hiw-header:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.resale-hiw-body {
+  padding: 0 var(--space-5) var(--space-5);
+}
+
+.resale-hiw-chevron {
+  font-size: 1rem;
+  color: var(--amber);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.resale-hiw-chevron.is-rotated {
+  transform: rotate(-180deg);
 }
 
 .resale-hiw-title {
@@ -406,12 +454,13 @@ async function handleGenerateKey() {
   text-transform: uppercase;
   letter-spacing: 0.16em;
   color: var(--amber);
-  margin-bottom: var(--space-4);
+  margin-bottom: 0;
 }
 
 .resale-hiw-steps {
   display: flex;
   flex-direction: column;
+  margin-top: var(--space-3);
 }
 
 .resale-hiw-connector {
