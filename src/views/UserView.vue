@@ -8,12 +8,13 @@ import TabLicense from '@/components/TabLicense.vue'
 import TabResale from '@/components/TabResale.vue'
 import TabCredits from '@/components/TabCredits.vue'
 import TabTransactions from '@/components/TabTransactions.vue'
+import TabDownload from '@/components/TabDownload.vue'
 
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const toastStore = useToastStore()
 
-const activeTab = ref<'license' | 'resale' | 'credits' | 'transactions'>('license')
+const activeTab = ref<'license' | 'resale' | 'credits' | 'transactions' | 'download'>('license')
 
 onMounted(async () => {
   await Promise.all([
@@ -145,6 +146,15 @@ function formatDate(date: string | null) {
               <span class="side-nav-icon">≡</span>
               Transações
             </button>
+            <button
+              v-if="!userStore.isExpired || userStore.profile.credits"
+              class="side-nav-item"
+              :class="{ active: activeTab === 'download' }"
+              @click="activeTab = 'download'"
+            >
+              <span class="side-nav-icon">⬇</span>
+              Download
+            </button>
           </nav>
 
           <!-- License mini card -->
@@ -168,6 +178,7 @@ function formatDate(date: string | null) {
           <TabResale v-if="activeTab === 'resale'" />
           <TabCredits v-if="activeTab === 'credits'" />
           <TabTransactions v-if="activeTab === 'transactions'" />
+          <TabDownload v-if="activeTab === 'download'" />
         </div>
       </div>
     </main>
