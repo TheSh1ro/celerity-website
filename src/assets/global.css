@@ -303,7 +303,6 @@ label,
 .card-header-inner {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
 }
 
 .card-body {
