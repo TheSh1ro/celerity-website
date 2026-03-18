@@ -1,15 +1,10 @@
 <!-- AdminView.vue -->
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import { useAdminStore, type User } from '@/stores/admin'
 import { useToastStore } from '@/stores/toast'
 import { useUserStore } from '@/stores/user'
-
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
-)
 
 const adminStore = useAdminStore()
 const toastStore = useToastStore()
