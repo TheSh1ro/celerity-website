@@ -7,25 +7,29 @@
         <p class="card-subtitle">Baixe o arquivo e atualizações do aplicativo</p>
       </div>
       <div class="card-body">
-        <div class="alert alert-info">
-          <span>◎</span>
-          <div>
-            <p style="font-weight: 700; font-size: 0.95rem; letter-spacing: 0.06em">EM BREVE</p>
-            <p style="font-size: 0.9rem; margin-top: 2px">
-              O módulo de downloads está sendo desenvolvido. Em breve você poderá baixar
-              atualizações e arquivos diretamente por aqui.
-            </p>
-          </div>
+        <div v-if="error" class="alert alert-error">
+          <span>✕</span>
+          <p>{{ error }}</p>
         </div>
 
-        <div class="download-grid" style="margin-top: var(--space-6); opacity: 0.45">
-          <div class="download-card" v-for="item in DOWNLOAD_ITEMS" :key="item.name">
-            <div class="download-icon">{{ item.icon }}</div>
+        <div class="download-grid" :style="{ opacity: loading ? 0.45 : 1 }">
+          <div class="download-card">
+            <div class="download-icon">⬇</div>
             <div class="download-info">
-              <div class="download-name">{{ item.name }}</div>
-              <div class="download-meta">{{ item.version }} · {{ item.size }}</div>
+              <div class="download-name">
+                {{ loading ? '—' : fileName }}
+              </div>
+              <div class="download-meta">
+                {{ loading ? '—' : `v${minVersion} · Portable (não exige instalação)` }}
+              </div>
             </div>
-            <button class="btn btn-secondary" disabled>INDISPONÍVEL</button>
+            <button
+              class="btn btn-primary"
+              :disabled="loading || !!error || !executableUrl"
+              @click="download"
+            >
+              {{ loading ? 'CARREGANDO' : 'BAIXAR' }}
+            </button>
           </div>
         </div>
       </div>
@@ -34,14 +38,63 @@
 </template>
 
 <script setup lang="ts">
-const DOWNLOAD_ITEMS = [
-  {
-    icon: '⬇',
-    name: 'Portable version (não exige instalação)',
-    version: 'v1.0.0',
-    size: '69.5MB',
-  },
-]
+import { ref, computed, onMounted } from 'vue'
+import { userRpc } from '@/api'
+
+// ─── State ────────────────────────────────────────────────────────────────────
+
+const loading = ref(true)
+const error = ref('')
+const executableUrl = ref('')
+const minVersion = ref('')
+
+// ─── Computed ─────────────────────────────────────────────────────────────────
+
+const fileName = computed(() => {
+  if (!executableUrl.value) return ''
+  return executableUrl.value.split('/').pop() ?? executableUrl.value
+})
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
+
+async function loadConfig(): Promise<void> {
+  loading.value = true
+  error.value = ''
+  try {
+    const result = await userRpc<{ status: string; config: Record<string, string> }>(
+      'get_app_config',
+      {},
+    )
+
+    if (!result.ok) {
+      error.value = result.error
+      return
+    }
+
+    const config = result.data.config ?? {}
+    executableUrl.value = config['executable_url'] ?? ''
+    minVersion.value = config['min_version'] ?? ''
+
+    if (!executableUrl.value) {
+      error.value = 'URL de download não configurada.'
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+function download(): void {
+  if (!executableUrl.value) return
+  const a = document.createElement('a')
+  a.href = executableUrl.value
+  a.download = fileName.value
+  a.rel = 'noopener noreferrer'
+  a.click()
+}
+
+// ─── Lifecycle ────────────────────────────────────────────────────────────────
+
+onMounted(loadConfig)
 </script>
 
 <style scoped>
@@ -49,6 +102,8 @@ const DOWNLOAD_ITEMS = [
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  margin-top: var(--space-2);
+  transition: opacity 0.2s;
 }
 
 .download-card {
@@ -63,7 +118,6 @@ const DOWNLOAD_ITEMS = [
 
 .download-icon {
   font-size: 1.25rem;
-  opacity: 0.5;
   flex-shrink: 0;
 }
 
