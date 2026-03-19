@@ -1,6 +1,6 @@
 # Documentação Técnica — Supabase Database
 
-**Database:** PostgreSQL 15
+**Database:** PostgreSQL 17.6
 **Owner padrão das funções/tabelas:** `postgres`
 
 ---
@@ -228,6 +228,30 @@ Limpeza recomendada periodicamente:
 DELETE FROM login_attempts WHERE attempted_at < now() - interval '7 days';
 ```
 
+### `app_config`
+
+Armazenamento de configurações da aplicação em formato chave-valor. Usada pelas RPCs `check_version` e `get_app_config`.
+
+```sql
+CREATE TABLE public.app_config (
+  key   text NOT NULL,
+  value text NOT NULL,
+  CONSTRAINT app_config_pkey PRIMARY KEY (key)
+);
+```
+
+**Chaves esperadas:**
+
+| Chave            | Descrição                                                          |
+| ---------------- | ------------------------------------------------------------------ |
+| `min_version`    | Versão mínima aceita do cliente desktop (ex: `1.2.0`)              |
+| `download_url`   | URL da página de download (usada por `check_version`)              |
+| `executable_url` | URL direta do executável (usada por `get_app_config` / painel web) |
+
+**RLS:** Habilitado, sem nenhuma policy — acesso exclusivo via RPCs.
+
+---
+
 | Tabela         | Coluna          | Referencia             | ON DELETE |
 | -------------- | --------------- | ---------------------- | --------- |
 | `keys`         | `duration_days` | `plans(duration_days)` | NO ACTION |
@@ -251,6 +275,7 @@ Deletar um usuário referenciado em qualquer dessas tabelas causará erro de FK.
 | `transactions`   | ✅ ON | Nenhuma policy                       | Bloqueado      |
 | `pix_payments`   | ✅ ON | Nenhuma policy                       | Bloqueado      |
 | `login_attempts` | ✅ ON | Nenhuma policy                       | Bloqueado      |
+| `app_config`     | ✅ ON | Nenhuma policy                       | Bloqueado      |
 
 ---
 
@@ -553,6 +578,43 @@ Campos de cada plano: `days`, `price`.
 
 ---
 
+### `check_version(p_version text) → json`
+
+Verifica se a versão do cliente desktop é compatível com a versão mínima configurada em `app_config`. Sem autenticação requerida.
+
+Compara arrays de versão semântica (ex: `'1.2.3'` → `[1, 2, 3]`).
+
+**Parâmetros:**
+
+- `p_version`: versão atual do cliente (ex: `'1.2.0'`)
+
+| Retorno                                     | Significado                     |
+| ------------------------------------------- | ------------------------------- |
+| `ok`                                        | Versão compatível               |
+| `outdated` + `min_version` + `download_url` | Versão abaixo do mínimo exigido |
+
+---
+
+### `get_app_config(p_token text) → json`
+
+Retorna todas as configurações da tabela `app_config` como objeto JSON. Aceita `active_token` ou `web_token`.
+
+**Fluxo:**
+
+1. Resolve usuário pelo token
+2. Verifica `is_active`
+3. Verifica acesso: admin (`is_admin = true`) **ou** `credits > 0` **ou** `software_access_until > now()`
+4. Retorna `json_object_agg(key, value)` da tabela `app_config`
+
+| Retorno           | Significado                              |
+| ----------------- | ---------------------------------------- |
+| `ok` + `config`   | Configurações retornadas                 |
+| `session_invalid` | Token inválido                           |
+| `inactive`        | Conta desativada                         |
+| `forbidden`       | Sem licença, créditos ou permissão admin |
+
+---
+
 ### `admin_get_user_keys(p_user_id uuid) → json` _(requer JWT admin)_
 
 Retorna todas as keys geradas por um usuário específico. Ordenado por `created_at DESC`.
@@ -721,7 +783,7 @@ WHERE is_active = true;
 
 ### "permission denied for table X"
 
-RLS ativo sem JWT válido, ou tabela sem policies. `keys`, `transactions` e `pix_payments` são inacessíveis diretamente mesmo com JWT admin. Use RPCs.
+RLS ativo sem JWT válido, ou tabela sem policies. `keys`, `transactions`, `pix_payments`, `login_attempts` e `app_config` são inacessíveis diretamente mesmo com JWT admin. Use RPCs.
 
 ### "new row violates check constraint"
 
