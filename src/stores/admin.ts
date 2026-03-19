@@ -36,6 +36,11 @@ export interface ResalePlan {
   is_active: boolean
 }
 
+export interface LicensePlan {
+  duration_days: number
+  price: number
+}
+
 type UserPatch = Partial<Omit<User, 'id' | 'created_at'>>
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -45,15 +50,18 @@ export const useAdminStore = defineStore('admin', () => {
 
   const users = ref<User[]>([])
   const selectedUserKeys = ref<UserKey[]>([])
-  const resalePlan = ref<ResalePlan | null>(null)
+  const resalePlans = ref<ResalePlan[]>([])
+  const licensePlans = ref<LicensePlan[]>([])
   const searchQuery = ref('')
   const selectedUser = ref<User | null>(null)
   const showUserPanel = ref(false)
 
   const loading = ref({
     users: false,
-    resalePlan: false,
+    resalePlans: false,
+    licensePlans: false,
     saveResalePlan: false,
+    saveLicensePlan: false,
     adjustCredits: false,
     saveUser: false,
     auth: false,
@@ -130,14 +138,23 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
-  async function loadResalePlan(): Promise<void> {
-    loading.value.resalePlan = true
+  async function loadResalePlans(): Promise<void> {
+    loading.value.resalePlans = true
     try {
-      const data = await adminFetch('resale_plans?duration_days=eq.30')
-      const plans = data as ResalePlan[]
-      if (plans[0]) resalePlan.value = plans[0]
+      const data = await adminFetch('resale_plans?order=duration_days.asc')
+      resalePlans.value = data as ResalePlan[]
     } finally {
-      loading.value.resalePlan = false
+      loading.value.resalePlans = false
+    }
+  }
+
+  async function loadLicensePlans(): Promise<void> {
+    loading.value.licensePlans = true
+    try {
+      const data = await adminFetch('plans?order=duration_days.asc')
+      licensePlans.value = data as LicensePlan[]
+    } finally {
+      loading.value.licensePlans = false
     }
   }
 
@@ -169,10 +186,30 @@ export const useAdminStore = defineStore('admin', () => {
 
       if (!result.ok) return result
 
-      await loadResalePlan()
+      await loadResalePlans()
       return { ok: true }
     } finally {
       loading.value.saveResalePlan = false
+    }
+  }
+
+  async function saveLicensePlan(
+    days: number,
+    price: number,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    loading.value.saveLicensePlan = true
+    try {
+      const result = await adminRpc('admin_update_plan', {
+        p_duration_days: days,
+        p_price: price,
+      })
+
+      if (!result.ok) return result
+
+      await loadLicensePlans()
+      return { ok: true }
+    } finally {
+      loading.value.saveLicensePlan = false
     }
   }
 
@@ -248,7 +285,8 @@ export const useAdminStore = defineStore('admin', () => {
   return {
     users,
     selectedUserKeys,
-    resalePlan,
+    resalePlans,
+    licensePlans,
     searchQuery,
     loading,
     error,
@@ -261,9 +299,11 @@ export const useAdminStore = defineStore('admin', () => {
     login,
     logout,
     loadUsers,
-    loadResalePlan,
+    loadResalePlans,
+    loadLicensePlans,
     loadUserKeys,
     saveResalePlan,
+    saveLicensePlan,
     adjustCredits,
     updateUser,
     forceLogout,

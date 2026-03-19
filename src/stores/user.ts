@@ -19,7 +19,7 @@ export interface Key {
 }
 
 export interface ResalePlan {
-  days: number
+  duration_days: number
   price: number
   is_active: boolean
 }
@@ -55,13 +55,13 @@ export const useUserStore = defineStore('user', () => {
   // ─── State ─────────────────────────────────────────────────────────────────
 
   const keys = ref<Key[]>([])
-  const resalePlan = ref<ResalePlan | null>(null)
+  const resalePlans = ref<ResalePlan[]>([])
   const licensePlans = ref<LicensePlan[]>([])
   const transactions = ref<Transaction[]>([])
 
   const loading = ref({
     keys: false,
-    resalePlan: false,
+    resalePlans: false,
     licensePlans: false,
     transactions: false,
     generateKey: false,
@@ -104,24 +104,17 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  async function loadResalePlan(): Promise<void> {
-    loading.value.resalePlan = true
+  async function loadResalePlans(): Promise<void> {
+    loading.value.resalePlans = true
     try {
-      const result = await userRpc<{
-        status: string
-        days: number
-        price: number
-      }>('get_active_resale_plan', {}, false)
-
-      if (result.ok) {
-        resalePlan.value = {
-          days: result.data.days,
-          price: result.data.price,
-          is_active: true,
-        }
-      }
+      const result = await userRpc<{ status: string; plans: ResalePlan[] }>(
+        'get_active_resale_plans',
+        {},
+        false,
+      )
+      if (result.ok) resalePlans.value = result.data.plans ?? []
     } finally {
-      loading.value.resalePlan = false
+      loading.value.resalePlans = false
     }
   }
 
@@ -152,10 +145,14 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  async function generateKey(): Promise<{ ok: true; key: string } | { ok: false; error: string }> {
+  async function generateKey(
+    durationDays: number,
+  ): Promise<{ ok: true; key: string } | { ok: false; error: string }> {
     loading.value.generateKey = true
     try {
-      const result = await userRpc<{ status: string; key: string }>('generate_key', {})
+      const result = await userRpc<{ status: string; key: string }>('generate_key', {
+        p_duration_days: durationDays,
+      })
 
       if (!result.ok) return result
 
@@ -210,7 +207,7 @@ export const useUserStore = defineStore('user', () => {
 
   return {
     keys,
-    resalePlan,
+    resalePlans,
     licensePlans,
     transactions,
     loading,
@@ -219,7 +216,7 @@ export const useUserStore = defineStore('user', () => {
     isExpired,
     keyStats,
     loadKeys,
-    loadResalePlan,
+    loadResalePlans,
     loadLicensePlans,
     loadTransactions,
     generateKey,

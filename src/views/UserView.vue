@@ -19,7 +19,7 @@ const activeTab = ref<'license' | 'resale' | 'credits' | 'transactions' | 'downl
 onMounted(async () => {
   await Promise.all([
     userStore.loadKeys(),
-    userStore.loadResalePlan(),
+    userStore.loadResalePlans(),
     userStore.loadLicensePlans(),
   ])
 })

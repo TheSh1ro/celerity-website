@@ -1,13 +1,13 @@
 <!-- AdminView.vue -->
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { useAdminStore, type User } from '@/stores/admin'
+import { useAdminStore, type User, type ResalePlan, type LicensePlan } from '@/stores/admin'
 import { useToastStore } from '@/stores/toast'
 
 const adminStore = useAdminStore()
 const toastStore = useToastStore()
 
-const showResaleModal = ref(false)
+const showPlanModal = ref(false)
 const showCreditsModal = ref(false)
 const showEditModal = ref(false)
 const showDeleteModal = ref(false)
@@ -16,7 +16,70 @@ const showLogoutModal = ref(false)
 const loginEmail = ref('')
 const loginPassword = ref('')
 
-const resaleForm = ref({ days: 30, price: 20, is_active: true })
+// ─── Plan modal (shared for resale + license) ──────────────────────────────
+
+type PlanModalMode = 'resale' | 'license'
+
+const planModal = ref({
+  mode: 'resale' as PlanModalMode,
+  duration_days: '' as '' | number,
+  price: '' as '' | number,
+  is_active: true,
+  isNew: false,
+})
+
+function openResalePlanModal(plan?: ResalePlan) {
+  planModal.value = {
+    mode: 'resale',
+    duration_days: plan?.duration_days ?? '',
+    price: plan?.price ?? '',
+    is_active: plan?.is_active ?? true,
+    isNew: !plan,
+  }
+  showPlanModal.value = true
+}
+
+function openLicensePlanModal(plan?: LicensePlan) {
+  planModal.value = {
+    mode: 'license',
+    duration_days: plan?.duration_days ?? '',
+    price: plan?.price ?? '',
+    is_active: true,
+    isNew: !plan,
+  }
+  showPlanModal.value = true
+}
+
+async function savePlan() {
+  const days = Number(planModal.value.duration_days)
+  const price = Number(planModal.value.price)
+
+  if (!days || days <= 0) {
+    toastStore.error('Informe uma duração válida')
+    return
+  }
+  if (!price || price <= 0) {
+    toastStore.error('Informe um preço válido')
+    return
+  }
+
+  if (planModal.value.mode === 'resale') {
+    const result = await adminStore.saveResalePlan(days, price, planModal.value.is_active)
+    if (result.ok) {
+      toastStore.success('Plano de revenda salvo!')
+      showPlanModal.value = false
+    } else toastStore.error(result.error)
+  } else {
+    const result = await adminStore.saveLicensePlan(days, price)
+    if (result.ok) {
+      toastStore.success('Plano de licença salvo!')
+      showPlanModal.value = false
+    } else toastStore.error(result.error)
+  }
+}
+
+// ─── Credits modal ──────────────────────────────────────────────────────────
+
 const creditsForm = ref({
   userId: '',
   username: '',
@@ -24,6 +87,9 @@ const creditsForm = ref({
   amount: '',
   operation: 'add' as 'add' | 'remove',
 })
+
+// ─── Edit user modal ─────────────────────────────────────────────────────────
+
 const editForm = ref({
   id: '',
   username: '',
@@ -33,22 +99,22 @@ const editForm = ref({
   isActive: true,
 })
 
-// Carrega dados assim que a sessão Supabase estiver ativa
+// ─── Data loading ─────────────────────────────────────────────────────────────
+
 watch(
   () => adminStore.supabaseAuthed,
   async (authed) => {
     if (!authed) return
-    await Promise.all([adminStore.loadUsers(), adminStore.loadResalePlan()])
-    if (adminStore.resalePlan) {
-      resaleForm.value = {
-        days: adminStore.resalePlan.duration_days,
-        price: adminStore.resalePlan.price,
-        is_active: adminStore.resalePlan.is_active,
-      }
-    }
+    await Promise.all([
+      adminStore.loadUsers(),
+      adminStore.loadResalePlans(),
+      adminStore.loadLicensePlans(),
+    ])
   },
   { immediate: true },
 )
+
+// ─── Handlers ────────────────────────────────────────────────────────────────
 
 async function adminLogin() {
   if (!loginEmail.value || !loginPassword.value) {
@@ -59,20 +125,6 @@ async function adminLogin() {
   if (ok) {
     loginEmail.value = ''
     loginPassword.value = ''
-  }
-}
-
-async function saveResalePlan() {
-  const result = await adminStore.saveResalePlan(
-    resaleForm.value.days,
-    resaleForm.value.price,
-    resaleForm.value.is_active,
-  )
-  if (result.ok) {
-    toastStore.success('Plano de revenda atualizado!')
-    showResaleModal.value = false
-  } else {
-    toastStore.error(result.error)
   }
 }
 
@@ -130,9 +182,7 @@ async function saveEdit() {
   }
   const patch: EditPatch = { is_active: editForm.value.isActive }
 
-  if (editForm.value.password) {
-    patch.password_hash = editForm.value.password
-  }
+  if (editForm.value.password) patch.password_hash = editForm.value.password
 
   if (editForm.value.licenseDays === 'date' && editForm.value.customDate) {
     patch.software_access_until = new Date(editForm.value.customDate).toISOString()
@@ -203,9 +253,8 @@ function daysLeft(iso: string | null) {
       </div>
 
       <div class="admin-login-card">
-        <!-- Terminal header -->
         <div class="terminal-header">
-          <span class="terminal-dots"> <span></span><span></span><span></span> </span>
+          <span class="terminal-dots"><span></span><span></span><span></span></span>
           <span class="terminal-title">AUTENTICAÇÃO ADMINISTRATIVA</span>
         </div>
 
@@ -228,7 +277,6 @@ function daysLeft(iso: string | null) {
               required
             />
           </div>
-
           <div class="form-group">
             <label class="form-label">Senha</label>
             <input
@@ -239,7 +287,6 @@ function daysLeft(iso: string | null) {
               required
             />
           </div>
-
           <button
             type="submit"
             class="btn btn-primary btn-lg w-full"
@@ -289,47 +336,113 @@ function daysLeft(iso: string | null) {
         </div>
       </div>
 
-      <!-- ── Resale Plan Config ── -->
+      <!-- ── Resale Plans ── -->
+      <div class="card" style="margin-bottom: var(--space-5)">
+        <div class="card-header">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="section-card-title">Planos de Revenda</h2>
+              <p class="section-card-sub">Keys geradas pelos revendedores</p>
+            </div>
+            <button class="btn btn-secondary btn-sm" @click="openResalePlanModal()">
+              + Novo Plano
+            </button>
+          </div>
+        </div>
+        <div class="card-body" style="padding: 0">
+          <div
+            v-if="adminStore.loading.resalePlans"
+            class="empty-state"
+            style="padding: var(--space-6)"
+          >
+            <span class="spinner" />
+            <p>Carregando...</p>
+          </div>
+          <div
+            v-else-if="adminStore.resalePlans.length === 0"
+            class="empty-state"
+            style="padding: var(--space-6)"
+          >
+            <p>Nenhum plano de revenda cadastrado.</p>
+          </div>
+          <table v-else>
+            <thead>
+              <tr>
+                <th>Duração</th>
+                <th>Preço (créditos)</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="plan in adminStore.resalePlans" :key="plan.duration_days">
+                <td class="mono" style="font-weight: 600">{{ plan.duration_days }} dias</td>
+                <td class="mono" style="color: var(--amber)">{{ plan.price }}</td>
+                <td>
+                  <span :class="['badge', plan.is_active ? 'badge-success' : 'badge-neutral']">
+                    {{ plan.is_active ? 'Ativo' : 'Desativado' }}
+                  </span>
+                </td>
+                <td>
+                  <button class="btn btn-ghost btn-sm" @click="openResalePlanModal(plan)">
+                    Editar
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── License Plans ── -->
       <div class="card" style="margin-bottom: var(--space-6)">
         <div class="card-header">
           <div class="flex items-center justify-between">
             <div>
-              <h2 class="section-card-title">Plano de Revenda</h2>
-              <p class="section-card-sub">Configurações globais para revendedores</p>
+              <h2 class="section-card-title">Planos de Licença</h2>
+              <p class="section-card-sub">Planos disponíveis para compra direta pelos usuários</p>
             </div>
-            <button class="btn btn-secondary btn-sm" @click="showResaleModal = true">
-              ⚙ Configurar
+            <button class="btn btn-secondary btn-sm" @click="openLicensePlanModal()">
+              + Novo Plano
             </button>
           </div>
         </div>
-        <div class="card-body" v-if="adminStore.resalePlan">
-          <div class="resale-config-row">
-            <div class="rci">
-              <span class="rci-label">DURAÇÃO</span>
-              <span class="rci-value"
-                >{{ adminStore.resalePlan.duration_days }} <small>dias</small></span
-              >
-            </div>
-            <div class="rci-divider"></div>
-            <div class="rci">
-              <span class="rci-label">PREÇO</span>
-              <span class="rci-value"
-                >{{ adminStore.resalePlan.price }} <small>créditos</small></span
-              >
-            </div>
-            <div class="rci-divider"></div>
-            <div class="rci">
-              <span class="rci-label">STATUS</span>
-              <span
-                :class="[
-                  'badge',
-                  adminStore.resalePlan.is_active ? 'badge-success' : 'badge-neutral',
-                ]"
-              >
-                {{ adminStore.resalePlan.is_active ? 'Ativo' : 'Desativado' }}
-              </span>
-            </div>
+        <div class="card-body" style="padding: 0">
+          <div
+            v-if="adminStore.loading.licensePlans"
+            class="empty-state"
+            style="padding: var(--space-6)"
+          >
+            <span class="spinner" />
+            <p>Carregando...</p>
           </div>
+          <div
+            v-else-if="adminStore.licensePlans.length === 0"
+            class="empty-state"
+            style="padding: var(--space-6)"
+          >
+            <p>Nenhum plano de licença cadastrado.</p>
+          </div>
+          <table v-else>
+            <thead>
+              <tr>
+                <th>Duração</th>
+                <th>Preço (créditos)</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="plan in adminStore.licensePlans" :key="plan.duration_days">
+                <td class="mono" style="font-weight: 600">{{ plan.duration_days }} dias</td>
+                <td class="mono" style="color: var(--amber)">{{ plan.price }}</td>
+                <td>
+                  <button class="btn btn-ghost btn-sm" @click="openLicensePlanModal(plan)">
+                    Editar
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -504,56 +617,80 @@ function daysLeft(iso: string | null) {
       </div>
     </main>
 
-    <!-- ── MODAL: Configurar Plano ── -->
-    <div v-if="showResaleModal" class="modal-overlay" @click.self="showResaleModal = false">
+    <!-- ── MODAL: Plano (revenda ou licença) ── -->
+    <div v-if="showPlanModal" class="modal-overlay" @click.self="showPlanModal = false">
       <div class="modal">
         <div class="modal-header">
-          <h3 class="modal-title">Configurar Plano de Revenda</h3>
+          <h3 class="modal-title">
+            {{ planModal.isNew ? 'Novo' : 'Editar' }}
+            {{ planModal.mode === 'resale' ? 'Plano de Revenda' : 'Plano de Licença' }}
+          </h3>
         </div>
         <div class="modal-body space-y-4">
           <div class="form-group">
             <label class="form-label">Duração (dias)</label>
-            <select v-model="resaleForm.days" class="form-input form-select">
-              <option :value="7">7 dias</option>
-              <option :value="15">15 dias</option>
-              <option :value="30">30 dias</option>
-            </select>
+            <input
+              v-model="planModal.duration_days"
+              type="number"
+              class="form-input"
+              min="1"
+              step="1"
+              placeholder="Ex: 30"
+              :readonly="!planModal.isNew"
+              :style="!planModal.isNew ? 'opacity: 0.6; cursor: not-allowed' : ''"
+            />
+            <p v-if="!planModal.isNew" class="form-hint">
+              A duração é a chave primária e não pode ser alterada. Crie um novo plano se
+              necessário.
+            </p>
           </div>
           <div class="form-group">
             <label class="form-label">Preço (créditos)</label>
             <input
-              v-model="resaleForm.price"
+              v-model="planModal.price"
               type="number"
               class="form-input"
-              min="0"
+              min="1"
               step="1"
-              @input="resaleForm.price = Math.trunc(resaleForm.price)"
+              placeholder="Ex: 20"
             />
           </div>
-          <div class="form-group">
+          <div v-if="planModal.mode === 'resale'" class="form-group">
             <label class="flex items-center gap-2" style="cursor: pointer">
-              <input v-model="resaleForm.is_active" type="checkbox" class="form-checkbox" />
-              <span style="font-size: 0.9rem; color: var(--text-secondary)">
-                Plano ativo (usuários podem gerar keys)
-              </span>
+              <input v-model="planModal.is_active" type="checkbox" class="form-checkbox" />
+              <span style="font-size: 0.9rem; color: var(--text-secondary)"
+                >Plano ativo (visível para revendedores)</span
+              >
             </label>
+          </div>
+          <div
+            v-if="planModal.mode === 'resale'"
+            class="form-hint"
+            style="margin-top: var(--space-2)"
+          >
+            ⚠ Ao criar um plano de revenda com nova duração, certifique-se de que esse mesmo valor
+            de duração existe na tabela de <strong>Planos de Licença</strong> (a FK da tabela keys
+            exige isso).
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-ghost" @click="showResaleModal = false">Cancelar</button>
+          <button class="btn btn-ghost" @click="showPlanModal = false">Cancelar</button>
           <button
             class="btn btn-primary"
-            @click="saveResalePlan"
-            :disabled="adminStore.loading.saveResalePlan"
+            @click="savePlan"
+            :disabled="adminStore.loading.saveResalePlan || adminStore.loading.saveLicensePlan"
           >
-            <span class="spinner" v-if="adminStore.loading.saveResalePlan" />
+            <span
+              class="spinner"
+              v-if="adminStore.loading.saveResalePlan || adminStore.loading.saveLicensePlan"
+            />
             <span v-else>Salvar</span>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- ── MODAL: Ajustar Créditos ── -->
+    <!-- ── MODAL: Créditos ── -->
     <div v-if="showCreditsModal" class="modal-overlay" @click.self="showCreditsModal = false">
       <div class="modal">
         <div class="modal-header">
@@ -596,8 +733,8 @@ function daysLeft(iso: string | null) {
               v-model="creditsForm.amount"
               type="number"
               class="form-input"
-              min="0.01"
-              step="0.01"
+              min="1"
+              step="1"
               placeholder="0"
             />
           </div>
@@ -900,7 +1037,6 @@ function daysLeft(iso: string | null) {
 .stat-card.success::before {
   background: var(--green);
 }
-
 .stat-card.warning::before {
   background: var(--orange);
 }
@@ -954,52 +1090,6 @@ function daysLeft(iso: string | null) {
 .section-card-sub {
   font-size: 0.82rem;
   color: var(--text-muted);
-}
-
-/* Resale config row */
-.resale-config-row {
-  display: flex;
-  align-items: center;
-  gap: 0;
-  flex-wrap: wrap;
-}
-
-.rci {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: 0 var(--space-6) 0 0;
-}
-
-.rci-label {
-  font-family: var(--font-ui);
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-muted);
-}
-
-.rci-value {
-  font-family: var(--font-display);
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.rci-value small {
-  font-size: 0.8rem;
-  font-weight: 400;
-  color: var(--text-muted);
-  margin-left: 3px;
-}
-
-.rci-divider {
-  width: 1px;
-  height: 40px;
-  background: var(--wire);
-  margin-right: var(--space-6);
 }
 
 /* User detail header */

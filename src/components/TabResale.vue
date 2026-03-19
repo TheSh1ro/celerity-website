@@ -3,7 +3,7 @@
 import { ref, computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
-import type { Key } from '@/stores/user'
+import type { Key, ResalePlan } from '@/stores/user'
 
 const userStore = useUserStore()
 const toastStore = useToastStore()
@@ -14,10 +14,22 @@ const showGeneratedKeyModal = ref(false)
 const showConfirmGenerateModal = ref(false)
 const selectedKey = ref<Key | null>(null)
 const generatedKey = ref('')
+const selectedPlanDays = ref<number | null>(null)
+
+// Auto-select first available plan
+const selectedPlan = computed<ResalePlan | null>(() => {
+  if (!userStore.resalePlans.length) return null
+  const days = selectedPlanDays.value
+  return userStore.resalePlans.find((p) => p.duration_days === days) ?? null
+})
+
+function selectPlan(plan: ResalePlan) {
+  selectedPlanDays.value = plan.duration_days
+}
 
 const canGenerateKey = computed(() => {
-  if (!userStore.resalePlan?.is_active) return false
-  return (userStore.profile?.credits || 0) >= (userStore.resalePlan?.price || 0)
+  if (!selectedPlan.value) return false
+  return (userStore.profile?.credits || 0) >= selectedPlan.value.price
 })
 
 function formatDate(date: string | null) {
@@ -59,7 +71,8 @@ async function handleRevert() {
 }
 
 async function handleGenerateKey() {
-  const result = await userStore.generateKey()
+  if (!selectedPlan.value) return
+  const result = await userStore.generateKey(selectedPlan.value.duration_days)
   if (result.ok) {
     generatedKey.value = result.key || ''
     showGeneratedKeyModal.value = true
@@ -67,6 +80,7 @@ async function handleGenerateKey() {
   } else {
     toastStore.error(result.error || 'Erro ao gerar key')
   }
+  showConfirmGenerateModal.value = false
 }
 </script>
 
@@ -80,17 +94,46 @@ async function handleGenerateKey() {
             <h2 class="card-title">Gerar Key de Revenda</h2>
             <p class="card-subtitle">Crie keys para vender para outros usuários</p>
           </div>
-          <div v-if="userStore.resalePlan" class="resale-plan-badge">
-            <span class="rpb-label">PLANO ATUAL</span>
-            <span class="rpb-value mono">
-              {{ userStore.resalePlan.days }}d · {{ userStore.resalePlan.price }} créditos
-            </span>
-          </div>
         </div>
       </div>
       <div class="card-body">
+        <!-- Plan selector -->
+        <div v-if="userStore.resalePlans.length > 0" style="margin-bottom: var(--space-4)">
+          <p class="resale-section-label">SELECIONE O PLANO</p>
+          <div class="plan-selector">
+            <button
+              v-for="plan in userStore.resalePlans"
+              :key="plan.duration_days"
+              class="plan-card"
+              :class="{ 'is-selected': selectedPlan?.duration_days === plan.duration_days }"
+              @click="selectPlan(plan)"
+            >
+              <span class="plan-card-days">{{ plan.duration_days }}<small>d</small></span>
+              <span class="plan-card-price">{{ plan.price }} <small>créditos</small></span>
+            </button>
+          </div>
+        </div>
+
+        <div
+          v-else-if="userStore.loading.resalePlans"
+          class="empty-state"
+          style="padding: var(--space-6)"
+        >
+          <span class="spinner" />
+          <p>Carregando planos...</p>
+        </div>
+
+        <div v-else class="alert-inline alert-error-inline">
+          ⚠ Nenhum plano de revenda disponível no momento.
+        </div>
+
         <!-- How it works -->
-        <div class="resale-how-it-works" :class="{ 'is-open': howItWorksOpen }">
+        <div
+          v-if="userStore.resalePlans.length > 0"
+          class="resale-how-it-works"
+          :class="{ 'is-open': howItWorksOpen }"
+          style="margin-top: var(--space-4)"
+        >
           <button class="resale-hiw-header" @click="howItWorksOpen = !howItWorksOpen">
             <span class="resale-hiw-title">COMO FUNCIONA A REVENDA</span>
             <span class="resale-hiw-chevron" :class="{ 'is-rotated': howItWorksOpen }">▾</span>
@@ -102,13 +145,11 @@ async function handleGenerateKey() {
                 <div class="resale-hiw-step-body">
                   <p class="resale-hiw-step-label">GERE A KEY</p>
                   <p class="resale-hiw-step-text">
-                    Clique em "Gerar Nova Key". Serão descontados
-                    <strong style="color: var(--amber)"
-                      >{{ userStore.resalePlan?.price }} créditos</strong
-                    >
+                    Selecione um plano e clique em "Gerar Nova Key". Serão descontados
+                    <strong style="color: var(--amber)">{{ selectedPlan?.price }} créditos</strong>
                     da sua conta e uma key de
                     <strong style="color: var(--green)"
-                      >{{ userStore.resalePlan?.days }} dias</strong
+                      >{{ selectedPlan?.duration_days }} dias</strong
                     >
                     será criada para você.
                   </p>
@@ -129,9 +170,9 @@ async function handleGenerateKey() {
               <div class="resale-hiw-step">
                 <div class="resale-hiw-step-num">⚠</div>
                 <div class="resale-hiw-step-body">
-                  <p class="resale-hiw-step-label">VENDA PELO SEU PREÇO</p>
+                  <p class="resale-hiw-step-label">ATENÇÃO</p>
                   <p class="resale-hiw-step-text">
-                    Você lida com a venda do inicio ao fim, não entregue a chave antes de receber o
+                    Você lida com a venda do início ao fim. Não entregue a chave antes de receber o
                     pagamento.
                   </p>
                 </div>
@@ -169,11 +210,11 @@ async function handleGenerateKey() {
         </div>
 
         <!-- Credit cost summary -->
-        <div class="resale-cost-row">
+        <div v-if="selectedPlan" class="resale-cost-row">
           <div class="resale-cost-item">
             <span class="resale-cost-label">CUSTO POR KEY</span>
             <span class="resale-cost-value">
-              {{ userStore.resalePlan?.price }}
+              {{ selectedPlan.price }}
               <span class="resale-cost-unit">créditos</span>
             </span>
           </div>
@@ -181,7 +222,7 @@ async function handleGenerateKey() {
           <div class="resale-cost-item">
             <span class="resale-cost-label">DURAÇÃO</span>
             <span class="resale-cost-value">
-              {{ userStore.resalePlan?.days }}
+              {{ selectedPlan.duration_days }}
               <span class="resale-cost-unit">dias</span>
             </span>
           </div>
@@ -197,7 +238,7 @@ async function handleGenerateKey() {
           </div>
         </div>
 
-        <div style="margin-top: var(--space-5)">
+        <div v-if="selectedPlan" style="margin-top: var(--space-5)">
           <button
             class="btn btn-primary btn-lg"
             :disabled="!canGenerateKey || userStore.loading.generateKey"
@@ -208,18 +249,11 @@ async function handleGenerateKey() {
         </div>
 
         <p
-          v-if="!userStore.resalePlan?.is_active"
-          class="alert-inline alert-error-inline"
-          style="margin-top: var(--space-4)"
-        >
-          ⚠ Plano de revenda temporariamente desativado.
-        </p>
-        <p
-          v-else-if="(userStore.profile?.credits || 0) < (userStore.resalePlan?.price || 0)"
+          v-if="selectedPlan && (userStore.profile?.credits || 0) < selectedPlan.price"
           class="alert-inline alert-warning-inline"
           style="margin-top: var(--space-4)"
         >
-          ⚠ Créditos insuficientes. Você precisa de {{ userStore.resalePlan?.price }} créditos.
+          ⚠ Créditos insuficientes. Você precisa de {{ selectedPlan.price }} créditos.
         </p>
       </div>
     </div>
@@ -243,6 +277,7 @@ async function handleGenerateKey() {
           <thead>
             <tr>
               <th>Key</th>
+              <th>Duração</th>
               <th>Criada em</th>
               <th>Status</th>
               <th>Ações</th>
@@ -253,6 +288,7 @@ async function handleGenerateKey() {
               <td>
                 <span class="key-value mono">{{ key.key }}</span>
               </td>
+              <td class="mono text-sm">{{ key.duration_days }}d</td>
               <td class="mono text-sm">{{ formatDate(key.created_at) }}</td>
               <td>
                 <span :class="['badge', keyStatusBadge(key)]">
@@ -291,27 +327,29 @@ async function handleGenerateKey() {
         <h3 class="modal-title">Confirmar Geração de Key</h3>
       </div>
       <div class="modal-body">
-        <p style="color: var(--text-secondary); margin-bottom: var(--space-4)">
-          Você está prestes a gerar uma key de revenda com plano inicial de
-          <strong style="color: var(--text-primary)">{{ userStore.resalePlan?.days }} dias</strong>.
-        </p>
         <div class="confirm-row">
-          <span class="confirm-label">CRÉDITOS DESCONTADOS</span>
-          <span class="confirm-value mono">{{ userStore.resalePlan?.price }} créditos</span>
+          <div>
+            <p class="confirm-label">PLANO SELECIONADO</p>
+            <p class="confirm-value">{{ selectedPlan?.duration_days }} dias</p>
+          </div>
+          <div style="text-align: right">
+            <p class="confirm-label">CUSTO</p>
+            <p class="confirm-value">{{ selectedPlan?.price }} créditos</p>
+          </div>
         </div>
-        <div class="modal-policy-box modal-policy-ok">
+        <div class="modal-policy-box modal-policy-ok" style="margin-top: var(--space-4)">
           <span class="modal-policy-icon">✓</span>
-          <p>
-            Key <strong>não utilizada</strong> pode ser revertida a qualquer momento, seus créditos
-            serão devolvidos integralmente.
-          </p>
+          <span>
+            Uma key de <strong>{{ selectedPlan?.duration_days }} dias</strong> será gerada e
+            <strong>{{ selectedPlan?.price }} créditos</strong> serão descontados da sua conta.
+          </span>
         </div>
         <div class="modal-policy-box modal-policy-warn">
           <span class="modal-policy-icon">⚠</span>
-          <p>
-            Key <strong>já utilizada não tem reembolso</strong>. Após o cliente ativar a key, a
-            operação é irreversível.
-          </p>
+          <span>
+            Após a geração, a key só pode ser revertida se
+            <strong>não tiver sido utilizada</strong>.
+          </span>
         </div>
       </div>
       <div class="modal-footer">
@@ -319,35 +357,11 @@ async function handleGenerateKey() {
         <button
           class="btn btn-primary"
           :disabled="userStore.loading.generateKey"
-          @click="((showConfirmGenerateModal = false), handleGenerateKey())"
+          @click="handleGenerateKey"
         >
           <span class="spinner" v-if="userStore.loading.generateKey" />
           <span v-else>Confirmar e Gerar</span>
         </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── MODAL: Reverter Key ── -->
-  <div v-if="showRevertModal" class="modal-overlay" @click.self="showRevertModal = false">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 class="modal-title">⚠ Reverter Key</h3>
-      </div>
-      <div class="modal-body">
-        <p style="color: var(--text-secondary); margin-bottom: var(--space-4)">
-          Tem certeza que deseja reverter esta key?
-        </p>
-        <div class="key-display">
-          <span class="key-value mono">{{ selectedKey?.key }}</span>
-        </div>
-        <p class="form-hint" style="margin-top: var(--space-3)">
-          Os créditos serão devolvidos e a key será invalidada permanentemente.
-        </p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" @click="showRevertModal = false">Cancelar</button>
-        <button class="btn btn-danger" @click="handleRevert">Reverter Key</button>
       </div>
     </div>
   </div>
@@ -363,42 +377,143 @@ async function handleGenerateKey() {
         <h3 class="modal-title" style="color: var(--green)">✓ Key Gerada</h3>
       </div>
       <div class="modal-body">
-        <p class="form-hint" style="margin-bottom: var(--space-4)">
-          Copie a key abaixo. Ela não será exibida novamente.
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: var(--space-3)">
+          Copie a key abaixo e envie ao seu cliente. Ela também aparece na sua lista de keys.
         </p>
-        <div class="key-display">
-          <span class="key-value mono">{{ generatedKey }}</span>
-          <button class="btn btn-primary btn-sm" @click="copyKey(generatedKey)">Copiar</button>
+        <div
+          class="mono"
+          style="
+            background: var(--bg-void);
+            border: 1px solid var(--wire-active);
+            border-radius: var(--radius-sm);
+            padding: var(--space-4) var(--space-5);
+            font-size: 0.95rem;
+            color: var(--amber);
+            word-break: break-all;
+            letter-spacing: 0.04em;
+          "
+        >
+          {{ generatedKey }}
         </div>
+        <button
+          class="btn btn-ghost btn-sm"
+          style="margin-top: var(--space-3)"
+          @click="copyKey(generatedKey)"
+        >
+          Copiar Key
+        </button>
       </div>
       <div class="modal-footer">
         <button class="btn btn-primary" @click="showGeneratedKeyModal = false">Fechar</button>
       </div>
     </div>
   </div>
+
+  <!-- ── MODAL: Confirmar Reversão ── -->
+  <div v-if="showRevertModal" class="modal-overlay" @click.self="showRevertModal = false">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--red)">⚠ Reverter Key</h3>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-secondary)">
+          Tem certeza que deseja reverter esta key? Os créditos serão devolvidos integralmente.
+        </p>
+        <p class="mono" style="color: var(--amber); margin-top: var(--space-3); font-size: 0.88rem">
+          {{ selectedKey?.key }}
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" @click="showRevertModal = false">Cancelar</button>
+        <button
+          class="btn btn-danger"
+          :disabled="userStore.loading.revertKey === selectedKey?.id"
+          @click="handleRevert"
+        >
+          <span class="spinner" v-if="userStore.loading.revertKey === selectedKey?.id" />
+          <span v-else>Reverter</span>
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-/* Resale plan badge */
-.resale-plan-badge {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.rpb-label {
+/* Plan selector */
+.resale-section-label {
   font-family: var(--font-ui);
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 700;
+  text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--text-muted);
-  text-transform: uppercase;
+  margin-bottom: var(--space-3);
 }
 
-.rpb-value {
-  font-size: 0.9rem;
-  color: var(--text-secondary);
+.plan-selector {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-6);
+  background: var(--bg-surface);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+  min-width: 100px;
+}
+
+.plan-card:hover {
+  border-color: var(--wire-active);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.plan-card.is-selected {
+  border-color: var(--amber);
+  background: var(--amber-dim);
+}
+
+.plan-card-days {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.plan-card.is-selected .plan-card-days {
+  color: var(--amber);
+}
+
+.plan-card-days small {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: 1px;
+}
+
+.plan-card-price {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.plan-card.is-selected .plan-card-price {
+  color: rgba(200, 164, 52, 0.75);
+}
+
+.plan-card-price small {
+  font-weight: 400;
 }
 
 /* How it works */
