@@ -35,6 +35,54 @@
       </div>
     </div>
 
+    <!-- ─── Tutorial accordion ──────────────────────────────────────────────── -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Como usar o aplicativo</h2>
+        <p class="card-subtitle">Guia de cada seção das configurações</p>
+      </div>
+      <div class="card-body">
+        <div class="accordion">
+          <div
+            v-for="(section, index) in tutorialSections"
+            :key="section.id"
+            class="accordion-item"
+            :class="{ 'accordion-item--open': openSection === section.id }"
+          >
+            <button class="accordion-trigger" @click="toggleSection(section.id)">
+              <span class="accordion-trigger-left">
+                <span class="accordion-index">{{ String(index + 1).padStart(2, '0') }}</span>
+                <span class="accordion-title">{{ section.title }}</span>
+              </span>
+              <span class="accordion-chevron">▸</span>
+            </button>
+
+            <Transition name="accordion">
+              <div v-if="openSection === section.id" class="accordion-body">
+                <div class="tutorial-content">
+                  <div class="tutorial-screenshot">
+                    <img
+                      :src="section.image"
+                      :alt="`Screenshot da aba ${section.title}`"
+                      class="screenshot-img"
+                    />
+                  </div>
+                  <p class="tutorial-intro">{{ section.intro }}</p>
+                  <ul class="tutorial-items">
+                    <li v-for="item in section.items" :key="item.label" class="tutorial-item">
+                      <span class="tutorial-item-label">{{ item.label }}</span>
+                      <span class="tutorial-item-desc">{{ item.desc }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </Transition>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── Revert steps ────────────────────────────────────────────────────── -->
     <div class="card">
       <div class="card-header">
         <h2 class="card-title">Como reverter o modo disfarce</h2>
@@ -86,6 +134,137 @@ const error = ref('')
 const executableUrl = ref('')
 const minVersion = ref('')
 const copySuccess = ref(false)
+const openSection = ref<string | null>(null)
+
+// ─── Tutorial data ─────────────────────────────────────────────────────────────
+
+const tutorialSections = [
+  {
+    id: 'tela',
+    title: 'TELA',
+    image: new URL('@/assets/tutorial/2.png', import.meta.url).href,
+    intro: 'Define as regiões da tela que o aplicativo utiliza para operar.',
+    items: [
+      {
+        label: 'Combinar item → DEFINIR',
+        desc: 'Clique e selecione a coordenada exata onde o item deve ser arrastado para combinar (ex.: pedra de amolar).',
+      },
+      {
+        label: 'Inventário → DEFINIR',
+        desc: 'Clique e desenhe a área do inventário onde as pedras de amolar ficam localizadas na tela.',
+      },
+      {
+        label: 'MOSTRAR ÁREAS',
+        desc: 'Exibe um overlay visual com todas as áreas definidas para confirmar o posicionamento.',
+      },
+    ],
+  },
+  {
+    id: 'item-move',
+    title: 'ITEM MOVE',
+    image: new URL('@/assets/tutorial/3.png', import.meta.url).href,
+    intro: 'Configura as posições de origem e destino para mover itens automaticamente.',
+    items: [
+      {
+        label: 'Posição 1 → DEFINIR',
+        desc: 'Define a coordenada de origem do drag (ponto de onde o item será pego).',
+      },
+      {
+        label: 'Posição 1 → atalho',
+        desc: 'Associa uma tecla de atalho para ativar rapidamente esta posição.',
+      },
+      {
+        label: 'Posição 2 → DEFINIR',
+        desc: 'Define a coordenada de destino do drag (ponto onde o item será solto).',
+      },
+      {
+        label: 'Posição 2 → atalho',
+        desc: 'Associa uma tecla de atalho para ativar rapidamente esta posição.',
+      },
+      {
+        label: 'MOSTRAR POSIÇÕES',
+        desc: 'Exibe um overlay visual indicando as posições 1 e 2 configuradas.',
+      },
+    ],
+  },
+  {
+    id: 'recon',
+    title: 'RECON',
+    image: new URL('@/assets/tutorial/4.png', import.meta.url).href,
+    intro: 'Gerencia as imagens de referência usadas para reconhecimento de itens na tela.',
+    items: [
+      {
+        label: 'Threshold de detecção',
+        desc: 'Controla a sensibilidade do reconhecimento (0.0 a 1.0). Valores mais altos exigem correspondência mais precisa com o template.',
+      },
+      {
+        label: 'Amolador horizontal → VER',
+        desc: 'Abre uma prévia da imagem de referência atual para o amolador na posição horizontal.',
+      },
+      {
+        label: 'Amolador horizontal → DEFINIR',
+        desc: 'Permite capturar uma nova imagem de referência para o amolador horizontal.',
+      },
+      {
+        label: 'Amolador vertical → VER',
+        desc: 'Abre uma prévia da imagem de referência atual para o amolador na posição vertical.',
+      },
+      {
+        label: 'Amolador vertical → DEFINIR',
+        desc: 'Permite capturar uma nova imagem de referência para o amolador vertical.',
+      },
+      {
+        label: 'TESTAR DETECÇÃO',
+        desc: 'Executa o reconhecimento em tempo real para validar se os templates estão sendo detectados corretamente.',
+      },
+    ],
+  },
+  {
+    id: 'hotkeys',
+    title: 'HOTKEYS',
+    image: new URL('@/assets/tutorial/5.png', import.meta.url).href,
+    intro:
+      'Configura os atalhos de teclado globais do aplicativo. Pressione Delete para remover, ESC para cancelar.',
+    items: [
+      {
+        label: 'Modo acima',
+        desc: 'Cicla para o modo anterior na lista. Padrão: Page Up.',
+      },
+      {
+        label: 'Modo abaixo',
+        desc: 'Cicla para o próximo modo na lista. Padrão: Page Down.',
+      },
+      {
+        label: 'Toggle overlay',
+        desc: 'Mostra ou oculta o overlay sem interromper o modo atual. Padrão: F1.',
+      },
+      {
+        label: 'Iniciar / Parar',
+        desc: 'Inicia ou para o modo ativo no momento. Padrão: 0.',
+      },
+    ],
+  },
+  {
+    id: 'conta',
+    title: 'CONTA',
+    image: new URL('@/assets/tutorial/1.png', import.meta.url).href,
+    intro: 'Informações da licença e opções de gerenciamento da conta.',
+    items: [
+      {
+        label: 'Licença',
+        desc: 'Exibe o status e validade da sua licença atual, incluindo a data de expiração.',
+      },
+      {
+        label: 'LOGOUT',
+        desc: 'Remove a sessão local e reinicia o aplicativo. Use para trocar de conta.',
+      },
+      {
+        label: 'Modo disfarce → ATIVAR',
+        desc: 'Transforma a aparência do aplicativo para camuflá-lo. Atenção: será necessário reinstalar o aplicativo para reverter.',
+      },
+    ],
+  },
+]
 
 // ─── Computed ─────────────────────────────────────────────────────────────────
 
@@ -95,6 +274,10 @@ const fileName = computed(() => {
 })
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
+
+function toggleSection(id: string): void {
+  openSection.value = openSection.value === id ? null : id
+}
 
 async function loadConfig(): Promise<void> {
   loading.value = true
@@ -190,6 +373,170 @@ onMounted(loadConfig)
   font-size: 0.78rem;
   color: var(--text-muted);
   letter-spacing: 0.04em;
+}
+
+/* ─── Accordion ─────────────────────────────────────────────────────────────── */
+
+.accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: var(--space-2);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.accordion-item {
+  border-bottom: 1px solid var(--wire);
+}
+
+.accordion-item:last-child {
+  border-bottom: none;
+}
+
+.accordion-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-elevated);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.accordion-trigger:hover {
+  background: var(--bg-surface, rgba(255, 255, 255, 0.04));
+}
+
+.accordion-item--open .accordion-trigger {
+  background: var(--bg-surface, rgba(255, 255, 255, 0.04));
+}
+
+.accordion-trigger-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.accordion-index {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+
+.accordion-title {
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.accordion-item--open .accordion-title {
+  color: var(--color-primary, #d4a843);
+}
+
+.accordion-chevron {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.accordion-item--open .accordion-chevron {
+  transform: rotate(90deg);
+  color: var(--color-primary, #d4a843);
+}
+
+.accordion-body {
+  background: var(--bg-base, #1a1a1a);
+  border-top: 1px solid var(--wire);
+  overflow: hidden;
+}
+
+/* ─── Accordion transition ──────────────────────────────────────────────────── */
+
+.accordion-enter-active,
+.accordion-leave-active {
+  transition:
+    max-height 0.25s ease,
+    opacity 0.2s ease;
+  max-height: 600px;
+}
+
+.accordion-enter-from,
+.accordion-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+
+/* ─── Tutorial content ──────────────────────────────────────────────────────── */
+
+.tutorial-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+}
+
+.tutorial-screenshot {
+  overflow-x: auto;
+}
+
+.screenshot-img {
+  display: block;
+  max-width: none;
+  height: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--wire);
+  background: var(--bg-elevated);
+}
+
+.tutorial-intro {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.tutorial-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-2);
+}
+
+.tutorial-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-elevated);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+}
+
+.tutorial-item-label {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--color-primary, #d4a843);
+}
+
+.tutorial-item-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.45;
 }
 
 /* ─── Revert steps ──────────────────────────────────────────────────────────── */
