@@ -1,6 +1,15 @@
 <!-- UserView.vue -->
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import {
+  PanelLeft,
+  RefreshCw,
+  CreditCard,
+  ArrowLeftRight,
+  Download,
+  Users,
+  ShieldCheck,
+} from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
@@ -16,7 +25,28 @@ const toastStore = useToastStore()
 
 const activeTab = ref<'license' | 'resale' | 'credits' | 'transactions' | 'download'>('license')
 
+// ── Online users counter (fake / demo) ──
+const TOTAL_REGISTERED = 11
+const onlineCount = ref(0)
+let onlineInterval: ReturnType<typeof setInterval> | null = null
+
+function seededValue(seed: number, min: number, max: number): number {
+  const h = ((seed * 2654435761) >>> 0) ^ (seed >>> 16)
+  return min + (h % (max - min + 1))
+}
+
+function refreshOnline() {
+  const now = new Date()
+  const utc = now.getTime() + now.getTimezoneOffset() * 60_000
+  const br = new Date(utc - 3 * 60 * 60 * 1000)
+  const hour = br.getHours()
+  const seed = br.getFullYear() * 1000000 + (br.getMonth() + 1) * 10000 + br.getDate() * 100 + hour
+  onlineCount.value = hour >= 12 && hour < 22 ? seededValue(seed, 1, 4) : 0
+}
+
 onMounted(async () => {
+  refreshOnline()
+  onlineInterval = setInterval(refreshOnline, 30_000)
   await Promise.all([
     userStore.loadKeys(),
     userStore.loadResalePlans(),
@@ -24,7 +54,10 @@ onMounted(async () => {
   ])
 })
 
-// Lazy-load transactions when the tab is first opened
+onUnmounted(() => {
+  if (onlineInterval) clearInterval(onlineInterval)
+})
+
 watch(activeTab, (tab) => {
   if (tab === 'transactions' && userStore.transactions.length === 0) {
     userStore.loadTransactions()
@@ -39,20 +72,18 @@ function formatDate(date: string | null) {
 
 <template>
   <div class="page-wrapper" v-if="userStore.profile">
-    <!-- ── HEADER ── -->
     <header class="app-header">
       <div class="container header-content">
         <div class="logo">
           <img src="/src/assets/logo.png" class="logo-icon" />
           <span>Celerity</span>
         </div>
-
         <nav class="header-nav">
           <div class="header-pill">
             <span class="pill-label">Créditos</span>
-            <span class="pill-value" style="color: var(--amber)">
-              {{ userStore.profile.credits }}
-            </span>
+            <span class="pill-value" style="color: var(--amber)">{{
+              userStore.profile.credits
+            }}</span>
           </div>
           <div class="header-pill">
             <span class="pill-label">Licença</span>
@@ -72,9 +103,7 @@ function formatDate(date: string | null) {
       </div>
     </header>
 
-    <!-- ── MAIN ── -->
     <main class="main-content container">
-      <!-- Stats strip -->
       <div class="stats-strip">
         <div class="stat-strip-item">
           <span class="stat-strip-label">Total de Keys</span>
@@ -83,23 +112,23 @@ function formatDate(date: string | null) {
         <div class="stat-strip-divider"></div>
         <div class="stat-strip-item">
           <span class="stat-strip-label">Disponíveis</span>
-          <span class="stat-strip-value" style="color: var(--green)">
-            {{ userStore.keyStats.available }}
-          </span>
+          <span class="stat-strip-value" style="color: var(--green)">{{
+            userStore.keyStats.available
+          }}</span>
         </div>
         <div class="stat-strip-divider"></div>
         <div class="stat-strip-item">
           <span class="stat-strip-label">Usadas</span>
-          <span class="stat-strip-value" style="color: var(--orange)">
-            {{ userStore.keyStats.used }}
-          </span>
+          <span class="stat-strip-value" style="color: var(--orange)">{{
+            userStore.keyStats.used
+          }}</span>
         </div>
         <div class="stat-strip-divider"></div>
         <div class="stat-strip-item">
           <span class="stat-strip-label">Revertidas</span>
-          <span class="stat-strip-value" style="color: var(--text-muted)">
-            {{ userStore.keyStats.reverted }}
-          </span>
+          <span class="stat-strip-value" style="color: var(--text-muted)">{{
+            userStore.keyStats.reverted
+          }}</span>
         </div>
         <div class="stat-strip-spacer"></div>
         <div class="stat-strip-status">
@@ -108,9 +137,7 @@ function formatDate(date: string | null) {
         </div>
       </div>
 
-      <!-- Layout: sidebar + content -->
       <div class="dash-layout">
-        <!-- Sidebar -->
         <aside class="dash-sidebar">
           <nav class="side-nav">
             <div class="side-nav-header">MÓDULOS</div>
@@ -119,32 +146,28 @@ function formatDate(date: string | null) {
               :class="{ active: activeTab === 'license' }"
               @click="activeTab = 'license'"
             >
-              <span class="side-nav-icon">◧</span>
-              Minha Licença
+              <PanelLeft class="side-nav-icon" />Minha Licença
             </button>
             <button
               class="side-nav-item"
               :class="{ active: activeTab === 'resale' }"
               @click="activeTab = 'resale'"
             >
-              <span class="side-nav-icon">⟳</span>
-              Revenda de Keys
+              <RefreshCw class="side-nav-icon" />Revenda de Keys
             </button>
             <button
               class="side-nav-item"
               :class="{ active: activeTab === 'credits' }"
               @click="activeTab = 'credits'"
             >
-              <span class="side-nav-icon">◈</span>
-              Comprar Créditos
+              <CreditCard class="side-nav-icon" />Comprar Créditos
             </button>
             <button
               class="side-nav-item"
               :class="{ active: activeTab === 'transactions' }"
               @click="activeTab = 'transactions'"
             >
-              <span class="side-nav-icon">≡</span>
-              Transações
+              <ArrowLeftRight class="side-nav-icon" />Transações
             </button>
             <button
               v-if="!userStore.isExpired || userStore.profile.credits"
@@ -152,14 +175,12 @@ function formatDate(date: string | null) {
               :class="{ active: activeTab === 'download' }"
               @click="activeTab = 'download'"
             >
-              <span class="side-nav-icon">⬇</span>
-              Download
+              <Download class="side-nav-icon" />Download
             </button>
           </nav>
 
-          <!-- License mini card -->
           <div class="side-license-card">
-            <div class="slc-label">LICENÇA</div>
+            <div class="slc-label"><ShieldCheck class="slc-icon" />LICENÇA</div>
             <div
               class="slc-value"
               :style="{ color: userStore.isExpired ? 'var(--red)' : 'var(--green)' }"
@@ -170,9 +191,26 @@ function formatDate(date: string | null) {
               Expira: {{ formatDate(userStore.profile?.software_access_until) }}
             </div>
           </div>
+
+          <div class="side-online-card">
+            <div class="soc-header">
+              <span class="soc-label"><Users class="soc-icon" />USUÁRIOS</span>
+              <span class="soc-pulse" :class="onlineCount > 0 ? 'live' : 'idle'"></span>
+            </div>
+            <div class="soc-row">
+              <span class="soc-metric-label">Online agora</span>
+              <span class="soc-metric-value" :class="onlineCount > 0 ? 'online' : 'zero'">{{
+                onlineCount
+              }}</span>
+            </div>
+            <div class="soc-divider"></div>
+            <div class="soc-row">
+              <span class="soc-metric-label">Registrados</span>
+              <span class="soc-metric-value total">{{ TOTAL_REGISTERED }}</span>
+            </div>
+          </div>
         </aside>
 
-        <!-- Content -->
         <div class="dash-content">
           <TabLicense v-if="activeTab === 'license'" />
           <TabResale v-if="activeTab === 'resale'" />
@@ -183,7 +221,6 @@ function formatDate(date: string | null) {
       </div>
     </main>
 
-    <!-- ── TOASTS ── -->
     <div class="toast-container">
       <div
         v-for="toast in toastStore.toasts"
@@ -196,7 +233,6 @@ function formatDate(date: string | null) {
     </div>
   </div>
 
-  <!-- Loading state -->
   <div v-else class="loading-page">
     <div class="loading-content">
       <span class="spinner" style="width: 32px; height: 32px" />
@@ -206,7 +242,6 @@ function formatDate(date: string | null) {
 </template>
 
 <style scoped>
-/* ── Page Background ── */
 .page-wrapper,
 .loading-page {
   min-height: 100dvh;
@@ -231,7 +266,6 @@ function formatDate(date: string | null) {
   justify-content: center;
 }
 
-/* ── Main ── */
 .main-content {
   width: 100%;
   padding-top: var(--space-6);
@@ -244,7 +278,6 @@ function formatDate(date: string | null) {
   gap: var(--space-6);
 }
 
-/* ── Stats Strip ── */
 .stats-strip {
   display: flex;
   align-items: center;
@@ -262,7 +295,6 @@ function formatDate(date: string | null) {
   gap: 2px;
   padding: 0 var(--space-5);
 }
-
 .stat-strip-item:first-child {
   padding-left: 0;
 }
@@ -290,7 +322,6 @@ function formatDate(date: string | null) {
   background: var(--wire);
   flex-shrink: 0;
 }
-
 .stat-strip-spacer {
   flex: 1;
 }
@@ -307,7 +338,6 @@ function formatDate(date: string | null) {
   color: var(--text-muted);
 }
 
-/* ── Dashboard Layout ── */
 .dash-layout {
   display: grid;
   grid-template-columns: 220px 1fr;
@@ -324,7 +354,6 @@ function formatDate(date: string | null) {
   }
 }
 
-/* ── Sidebar ── */
 .dash-sidebar {
   position: sticky;
   top: 76px;
@@ -375,23 +404,43 @@ function formatDate(date: string | null) {
   color: var(--text-secondary);
   background: var(--bg-elevated);
 }
-
 .side-nav-item.active {
   color: var(--amber);
   border-left-color: var(--amber);
   background: var(--amber-dim);
 }
-
 .side-nav-icon {
   opacity: 0.5;
-  font-size: var(--text-sm);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
 }
-
 .side-nav-item.active .side-nav-icon {
   opacity: 1;
 }
 
-/* License card */
+.slc-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.slc-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+}
+
+.soc-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.soc-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.7;
+}
+
 .side-license-card {
   background: var(--bg-surface);
   border: 1px solid var(--wire);
@@ -416,7 +465,6 @@ function formatDate(date: string | null) {
   letter-spacing: 0.04em;
   margin-bottom: var(--space-1);
 }
-
 .slc-date {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -424,7 +472,92 @@ function formatDate(date: string | null) {
   letter-spacing: 0.04em;
 }
 
-/* Loading */
+/* Online users card */
+.side-online-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--wire);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4) var(--space-5);
+}
+
+.soc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.soc-label {
+  font-family: var(--font-ui);
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.soc-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.soc-pulse.idle {
+  background: var(--text-disabled);
+}
+.soc-pulse.live {
+  background: var(--green);
+  animation: pulse-live 2s infinite;
+}
+
+@keyframes pulse-live {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 60%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--green) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 0%, transparent);
+  }
+}
+
+.soc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) 0;
+}
+
+.soc-metric-label {
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.soc-metric-value {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1;
+}
+.soc-metric-value.online {
+  color: var(--green);
+}
+.soc-metric-value.zero {
+  color: var(--text-disabled);
+}
+.soc-metric-value.total {
+  color: var(--text-primary);
+}
+
+.soc-divider {
+  height: 1px;
+  background: var(--wire);
+  margin: var(--space-2) 0;
+}
+
 .loading-content {
   display: flex;
   flex-direction: column;
