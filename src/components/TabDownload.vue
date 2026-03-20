@@ -560,7 +560,7 @@ onMounted(loadConfig)
   height: 1.6rem;
   border-radius: 50%;
   background: var(--amber-light);
-  color: var(--bg-void);
+  color: var(--text-on-accent);
   font-size: var(--text-xs);
   font-weight: 700;
   display: flex;

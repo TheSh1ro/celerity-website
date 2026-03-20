@@ -794,7 +794,9 @@ function daysLeft(iso: string | null) {
           <div class="form-group">
             <label class="flex items-center gap-2" style="cursor: pointer">
               <input v-model="editForm.isActive" type="checkbox" class="form-checkbox" />
-              <span style="font-size: var(--text-sm); color: var(--text-secondary)">Conta ativa</span>
+              <span style="font-size: var(--text-sm); color: var(--text-secondary)"
+                >Conta ativa</span
+              >
             </label>
           </div>
         </div>
@@ -877,7 +879,7 @@ function daysLeft(iso: string | null) {
 .admin-login-page,
 .loading-page,
 .admin-dashboard-page {
-  background-color: var(--bg-void);
+  background-color: var(--text-on-accent);
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -914,7 +916,7 @@ function daysLeft(iso: string | null) {
   align-items: center;
   justify-content: center;
   font-size: var(--text-2xl);
-  color: var(--bg-void);
+  color: var(--text-on-accent);
   flex-shrink: 0;
 }
 
@@ -1065,7 +1067,7 @@ function daysLeft(iso: string | null) {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
-  color: var(--bg-void);
+  color: var(--text-on-accent);
   background: var(--amber);
   padding: 0.15rem 0.5rem;
   border-radius: 1px;

@@ -160,7 +160,7 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: var(--bg-void);
+  background-color: var(--text-on-accent);
   padding: var(--space-8);
 }
 
@@ -322,7 +322,7 @@ async function handleSubmit() {
   text-transform: uppercase;
   letter-spacing: 0.12em;
   background: var(--amber);
-  color: var(--bg-void);
+  color: var(--text-on-accent);
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -398,7 +398,7 @@ async function handleSubmit() {
   width: 16px;
   height: 16px;
   border: 2px solid var(--wire-active);
-  border-top-color: var(--bg-void);
+  border-top-color: var(--text-on-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }

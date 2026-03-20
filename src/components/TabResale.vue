@@ -193,7 +193,9 @@ async function handleGenerateKey() {
                     revertê-la a qualquer momento pela tabela abaixo e os créditos serão devolvidos
                     integralmente.
                     <br />
-                    <span style="color: var(--red)">Keys já utilizadas não têm reembolso,</span>
+                    <strong style="color: var(--orange)"
+                      >Keys já utilizadas não têm reembolso,</strong
+                    >
                     a ativação é irreversível.
                   </p>
                 </div>
@@ -217,7 +219,9 @@ async function handleGenerateKey() {
         <div v-else-if="userStore.keys.length === 0" class="empty-state">
           <div class="empty-state-icon">⌗</div>
           <p>Nenhuma key gerada ainda</p>
-          <p style="font-size: var(--text-sm); margin-top: var(--space-1)">Gere sua primeira key acima</p>
+          <p style="font-size: var(--text-sm); margin-top: var(--space-1)">
+            Gere sua primeira key acima
+          </p>
         </div>
         <table v-else>
           <thead>
@@ -323,7 +327,9 @@ async function handleGenerateKey() {
         <h3 class="modal-title" style="color: var(--green)">✓ Key Gerada</h3>
       </div>
       <div class="modal-body">
-        <p style="color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-3)">
+        <p
+          style="color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-3)"
+        >
           Copie a key abaixo e envie ao seu cliente. Ela também aparece na sua lista de keys.
         </p>
         <div
@@ -365,7 +371,10 @@ async function handleGenerateKey() {
         <p style="color: var(--text-secondary)">
           Tem certeza que deseja reverter esta key? Os créditos serão devolvidos integralmente.
         </p>
-        <p class="mono" style="color: var(--amber); margin-top: var(--space-3); font-size: var(--text-sm)">
+        <p
+          class="mono"
+          style="color: var(--amber); margin-top: var(--space-3); font-size: var(--text-sm)"
+        >
           {{ selectedKey?.key }}
         </p>
       </div>
@@ -488,7 +497,7 @@ async function handleGenerateKey() {
 
 .resale-hiw-step-label {
   font-family: var(--font-ui);
-  font-size: var(--text-2xs);
+  font-size: var(--text-base);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;

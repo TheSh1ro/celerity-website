@@ -10,7 +10,9 @@
         <div class="alert alert-info">
           <span>◎</span>
           <div>
-            <p style="font-weight: 700; font-size: var(--text-base); letter-spacing: 0.06em">EM BREVE</p>
+            <p style="font-weight: 700; font-size: var(--text-base); letter-spacing: 0.06em">
+              EM BREVE
+            </p>
             <p style="font-size: var(--text-sm); margin-top: 2px">
               A integração com gateway de pagamento está sendo configurada. Entre em contato com o
               administrador para adicionar créditos manualmente.
@@ -38,9 +40,9 @@
 
 <script setup lang="ts">
 const CREDIT_PLANS = [
-  { credits: 10,  price: 10  },
-  { credits: 20,  price: 20  },
-  { credits: 30,  price: 30  },
+  { credits: 10, price: 10 },
+  { credits: 20, price: 20 },
+  { credits: 30, price: 30 },
   { credits: 100, price: 100 },
 ]
 </script>
