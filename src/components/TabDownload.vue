@@ -142,7 +142,7 @@ const tutorialSections = [
   {
     id: 'tela',
     title: 'TELA',
-    image: new URL('@/assets/tutorial/2.png', import.meta.url).href,
+    image: new URL('@/assets/tutorial/1.png', import.meta.url).href,
     intro: 'Define as regiões da tela que o aplicativo utiliza para operar.',
     items: [
       {
@@ -162,7 +162,7 @@ const tutorialSections = [
   {
     id: 'item-move',
     title: 'ITEM MOVE',
-    image: new URL('@/assets/tutorial/3.png', import.meta.url).href,
+    image: new URL('@/assets/tutorial/2.png', import.meta.url).href,
     intro: 'Configura as posições de origem e destino para mover itens automaticamente.',
     items: [
       {
@@ -190,7 +190,7 @@ const tutorialSections = [
   {
     id: 'recon',
     title: 'RECON',
-    image: new URL('@/assets/tutorial/4.png', import.meta.url).href,
+    image: new URL('@/assets/tutorial/3.png', import.meta.url).href,
     intro: 'Gerencia as imagens de referência usadas para reconhecimento de itens na tela.',
     items: [
       {
@@ -222,7 +222,7 @@ const tutorialSections = [
   {
     id: 'hotkeys',
     title: 'HOTKEYS',
-    image: new URL('@/assets/tutorial/5.png', import.meta.url).href,
+    image: new URL('@/assets/tutorial/4.png', import.meta.url).href,
     intro:
       'Configura os atalhos de teclado globais do aplicativo. Pressione Delete para remover, ESC para cancelar.',
     items: [
@@ -247,7 +247,7 @@ const tutorialSections = [
   {
     id: 'conta',
     title: 'CONTA',
-    image: new URL('@/assets/tutorial/1.png', import.meta.url).href,
+    image: new URL('@/assets/tutorial/5.png', import.meta.url).href,
     intro: 'Informações da licença e opções de gerenciamento da conta.',
     items: [
       {
