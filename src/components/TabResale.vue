@@ -217,51 +217,47 @@ async function handleGenerateKey() {
         <div v-else-if="userStore.keys.length === 0" class="empty-state">
           <div class="empty-state-icon">⌗</div>
           <p>Nenhuma key gerada ainda</p>
-          <p style="font-size: 0.85rem; margin-top: var(--space-1)">Gere sua primeira key acima</p>
+          <p style="font-size: var(--text-sm); margin-top: var(--space-1)">Gere sua primeira key acima</p>
         </div>
-        <div v-else class="table-responsive">
-          <table>
-            <thead>
-              <tr>
-                <th>Key</th>
-                <th>Duração</th>
-                <th>Criada em</th>
-                <th>Status</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="key in userStore.keys" :key="key.id">
-                <td data-label="Key">
-                  <span class="key-value mono">{{ key.key }}</span>
-                </td>
-                <td data-label="Duração" class="mono text-sm">{{ key.duration_days }}d</td>
-                <td data-label="Criada em" class="mono text-sm">
-                  {{ formatDate(key.created_at) }}
-                </td>
-                <td data-label="Status">
-                  <span :class="['badge', keyStatusBadge(key)]">
-                    {{ keyStatusLabel(key) }}
-                  </span>
-                </td>
-                <td data-label="Ações">
-                  <div v-if="!key.reverted" class="flex gap-2">
-                    <button class="btn btn-ghost btn-sm" @click="copyKey(key.key)">Copiar</button>
-                    <button
-                      v-if="!key.used && !key.reverted"
-                      class="btn btn-danger btn-sm"
-                      :disabled="userStore.loading.revertKey === key.id"
-                      @click="confirmRevert(key)"
-                    >
-                      <span class="spinner" v-if="userStore.loading.revertKey === key.id" />
-                      <span v-else>Reverter</span>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <table v-else>
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Duração</th>
+              <th>Criada em</th>
+              <th>Status</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="key in userStore.keys" :key="key.id">
+              <td>
+                <span class="key-value mono">{{ key.key }}</span>
+              </td>
+              <td class="mono text-sm">{{ key.duration_days }}d</td>
+              <td class="mono text-sm">{{ formatDate(key.created_at) }}</td>
+              <td>
+                <span :class="['badge', keyStatusBadge(key)]">
+                  {{ keyStatusLabel(key) }}
+                </span>
+              </td>
+              <td>
+                <div v-if="!key.reverted" class="flex gap-2">
+                  <button class="btn btn-ghost btn-sm" @click="copyKey(key.key)">Copiar</button>
+                  <button
+                    v-if="!key.used && !key.reverted"
+                    class="btn btn-danger btn-sm"
+                    :disabled="userStore.loading.revertKey === key.id"
+                    @click="confirmRevert(key)"
+                  >
+                    <span class="spinner" v-if="userStore.loading.revertKey === key.id" />
+                    <span v-else>Reverter</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -327,7 +323,7 @@ async function handleGenerateKey() {
         <h3 class="modal-title" style="color: var(--green)">✓ Key Gerada</h3>
       </div>
       <div class="modal-body">
-        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: var(--space-3)">
+        <p style="color: var(--text-muted); font-size: var(--text-sm); margin-bottom: var(--space-3)">
           Copie a key abaixo e envie ao seu cliente. Ela também aparece na sua lista de keys.
         </p>
         <div
@@ -337,7 +333,7 @@ async function handleGenerateKey() {
             border: 1px solid var(--wire-active);
             border-radius: var(--radius-sm);
             padding: var(--space-4) var(--space-5);
-            font-size: 0.95rem;
+            font-size: var(--text-base);
             color: var(--amber);
             word-break: break-all;
             letter-spacing: 0.04em;
@@ -369,7 +365,7 @@ async function handleGenerateKey() {
         <p style="color: var(--text-secondary)">
           Tem certeza que deseja reverter esta key? Os créditos serão devolvidos integralmente.
         </p>
-        <p class="mono" style="color: var(--amber); margin-top: var(--space-3); font-size: 0.88rem">
+        <p class="mono" style="color: var(--amber); margin-top: var(--space-3); font-size: var(--text-sm)">
           {{ selectedKey?.key }}
         </p>
       </div>
@@ -389,76 +385,6 @@ async function handleGenerateKey() {
 </template>
 
 <style scoped>
-/* Responsive table wrapper */
-.table-responsive {
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-@media (max-width: 600px) {
-  .table-responsive table,
-  .table-responsive thead,
-  .table-responsive tbody,
-  .table-responsive th,
-  .table-responsive td,
-  .table-responsive tr {
-    display: block;
-  }
-
-  .table-responsive thead {
-    display: none;
-  }
-
-  .table-responsive tbody tr {
-    padding: var(--space-4) var(--space-5);
-    border-bottom: 1px solid var(--wire);
-  }
-
-  .table-responsive tbody tr:last-child {
-    border-bottom: none;
-  }
-
-  .table-responsive td {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-1) 0;
-    border: none;
-  }
-
-  .table-responsive td::before {
-    content: attr(data-label);
-    font-family: var(--font-ui);
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--text-muted);
-    flex-shrink: 0;
-    min-width: 80px;
-  }
-
-  .table-responsive td[data-label='Key'] {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .table-responsive td[data-label='Key']::before {
-    min-width: unset;
-  }
-
-  .table-responsive td[data-label='Ações'] {
-    justify-content: flex-end;
-    padding-top: var(--space-2);
-  }
-
-  .table-responsive td[data-label='Ações']::before {
-    display: none;
-  }
-}
-
 /* How it works */
 .resale-how-it-works {
   background: var(--bg-void);
@@ -494,7 +420,7 @@ async function handleGenerateKey() {
 }
 
 .resale-hiw-chevron {
-  font-size: 1rem;
+  font-size: var(--text-base);
   color: var(--amber);
   transition: transform 0.2s ease;
   flex-shrink: 0;
@@ -507,7 +433,7 @@ async function handleGenerateKey() {
 
 .resale-hiw-title {
   font-family: var(--font-ui);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -542,7 +468,7 @@ async function handleGenerateKey() {
   border: 1px solid rgba(200, 164, 52, 0.3);
   color: var(--amber);
   font-family: var(--font-ui);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -562,7 +488,7 @@ async function handleGenerateKey() {
 
 .resale-hiw-step-label {
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -572,7 +498,7 @@ async function handleGenerateKey() {
 
 .resale-hiw-step-text {
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.55;
 }
@@ -580,7 +506,7 @@ async function handleGenerateKey() {
 /* Inline alerts */
 .alert-inline {
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-sm);
   border-left: 3px solid;
@@ -612,7 +538,7 @@ async function handleGenerateKey() {
 
 .confirm-label {
   font-family: var(--font-ui);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -620,7 +546,7 @@ async function handleGenerateKey() {
 }
 
 .confirm-value {
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--amber);
 }
@@ -634,7 +560,7 @@ async function handleGenerateKey() {
   border-radius: var(--radius-sm);
   margin-top: var(--space-3);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   line-height: 1.5;
 }
 
@@ -652,7 +578,7 @@ async function handleGenerateKey() {
 
 .modal-policy-icon {
   flex-shrink: 0;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   margin-top: 1px;
 }
 </style>

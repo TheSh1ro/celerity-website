@@ -191,7 +191,7 @@ async function handleSubmit() {
 
 .brand-name {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: 0.22em;
   color: var(--text-secondary);
@@ -201,7 +201,7 @@ async function handleSubmit() {
 /* ── Mode title ── */
 .mode-title {
   font-family: var(--font-display);
-  font-size: 1.75rem;
+  font-size: var(--text-3xl);
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--text-primary);
@@ -221,7 +221,7 @@ async function handleSubmit() {
   flex: 1;
   padding: 0.55rem 0;
   font-family: var(--font-ui);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -262,7 +262,7 @@ async function handleSubmit() {
 
 .field-label {
   font-family: var(--font-ui);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -273,7 +273,7 @@ async function handleSubmit() {
 }
 
 .optional-badge {
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0.03em;
@@ -301,7 +301,7 @@ async function handleSubmit() {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: var(--text-base);
   line-height: 1;
   padding: 0;
   transition: color var(--transition-fast);
@@ -317,7 +317,7 @@ async function handleSubmit() {
   margin-top: var(--space-2);
   padding: 0.8rem 1.5rem;
   font-family: var(--font-ui);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -351,14 +351,14 @@ async function handleSubmit() {
   border: 1px solid rgba(224, 68, 68, 0.25);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   color: #e07070;
   line-height: 1.4;
 }
 
 .alert-icon {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   width: 18px;
   height: 18px;
@@ -376,7 +376,7 @@ async function handleSubmit() {
   margin-top: var(--space-6);
   text-align: center;
   font-family: var(--font-body);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 

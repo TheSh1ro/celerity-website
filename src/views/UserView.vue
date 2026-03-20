@@ -269,7 +269,7 @@ function formatDate(date: string | null) {
 
 .stat-strip-label {
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -278,7 +278,7 @@ function formatDate(date: string | null) {
 
 .stat-strip-value {
   font-family: var(--font-display);
-  font-size: 1.6rem;
+  font-size: var(--text-2xl);
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
@@ -300,7 +300,7 @@ function formatDate(date: string | null) {
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-ui);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -343,7 +343,7 @@ function formatDate(date: string | null) {
 .side-nav-header {
   padding: var(--space-3) var(--space-4);
   font-family: var(--font-ui);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -359,7 +359,7 @@ function formatDate(date: string | null) {
   width: 100%;
   padding: var(--space-3) var(--space-4);
   font-family: var(--font-ui);
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--text-muted);
@@ -384,7 +384,7 @@ function formatDate(date: string | null) {
 
 .side-nav-icon {
   opacity: 0.5;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 .side-nav-item.active .side-nav-icon {
@@ -401,7 +401,7 @@ function formatDate(date: string | null) {
 
 .slc-label {
   font-family: var(--font-ui);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -411,7 +411,7 @@ function formatDate(date: string | null) {
 
 .slc-value {
   font-family: var(--font-display);
-  font-size: 1.6rem;
+  font-size: var(--text-2xl);
   font-weight: 700;
   letter-spacing: 0.04em;
   margin-bottom: var(--space-1);
@@ -419,7 +419,7 @@ function formatDate(date: string | null) {
 
 .slc-date {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   letter-spacing: 0.04em;
 }
@@ -434,7 +434,7 @@ function formatDate(date: string | null) {
 
 .loading-label {
   font-family: var(--font-ui);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.2em;

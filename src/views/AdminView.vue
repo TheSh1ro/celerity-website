@@ -514,13 +514,13 @@ function daysLeft(iso: string | null) {
                     >
                     <span v-else class="badge badge-warning">Expirado</span>
                   </td>
-                  <td class="mono" style="font-size: 0.82rem">
+                  <td class="mono" style="font-size: var(--text-xs)">
                     {{ formatDate(user.software_access_until) }}
                   </td>
-                  <td class="mono" style="font-size: 0.82rem">
+                  <td class="mono" style="font-size: var(--text-xs)">
                     {{ daysLeft(user.software_access_until) }}
                   </td>
-                  <td class="mono" style="font-size: 0.9rem; color: var(--amber)">
+                  <td class="mono" style="font-size: var(--text-sm); color: var(--amber)">
                     {{ user.credits }}
                   </td>
                   <td>
@@ -590,13 +590,13 @@ function daysLeft(iso: string | null) {
                         </thead>
                         <tbody>
                           <tr v-for="key in adminStore.selectedUserKeys" :key="key.id">
-                            <td class="mono" style="font-size: 0.82rem; color: var(--amber)">
+                            <td class="mono" style="font-size: var(--text-xs); color: var(--amber)">
                               {{ key.key }}
                             </td>
-                            <td class="mono" style="font-size: 0.82rem">
+                            <td class="mono" style="font-size: var(--text-xs)">
                               {{ key.duration_days }}d
                             </td>
-                            <td class="mono" style="font-size: 0.82rem">
+                            <td class="mono" style="font-size: var(--text-xs)">
                               {{ formatDate(key.created_at) }}
                             </td>
                             <td>
@@ -658,7 +658,7 @@ function daysLeft(iso: string | null) {
           <div v-if="planModal.mode === 'resale'" class="form-group">
             <label class="flex items-center gap-2" style="cursor: pointer">
               <input v-model="planModal.is_active" type="checkbox" class="form-checkbox" />
-              <span style="font-size: 0.9rem; color: var(--text-secondary)"
+              <span style="font-size: var(--text-sm); color: var(--text-secondary)"
                 >Plano ativo (visível para revendedores)</span
               >
             </label>
@@ -794,7 +794,7 @@ function daysLeft(iso: string | null) {
           <div class="form-group">
             <label class="flex items-center gap-2" style="cursor: pointer">
               <input v-model="editForm.isActive" type="checkbox" class="form-checkbox" />
-              <span style="font-size: 0.9rem; color: var(--text-secondary)">Conta ativa</span>
+              <span style="font-size: var(--text-sm); color: var(--text-secondary)">Conta ativa</span>
             </label>
           </div>
         </div>
@@ -913,14 +913,14 @@ function daysLeft(iso: string | null) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.4rem;
+  font-size: var(--text-2xl);
   color: var(--bg-void);
   flex-shrink: 0;
 }
 
 .admin-brand-title {
   font-family: var(--font-display);
-  font-size: 1.6rem;
+  font-size: var(--text-2xl);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -930,7 +930,7 @@ function daysLeft(iso: string | null) {
 
 .admin-brand-sub {
   font-family: var(--font-ui);
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.16em;
@@ -986,7 +986,7 @@ function daysLeft(iso: string | null) {
 
 .terminal-title {
   font-family: var(--font-ui);
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1043,7 +1043,7 @@ function daysLeft(iso: string | null) {
 
 .stat-label {
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1052,7 +1052,7 @@ function daysLeft(iso: string | null) {
 
 .stat-value {
   font-family: var(--font-display);
-  font-size: 2rem;
+  font-size: var(--text-3xl);
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.1;
@@ -1061,7 +1061,7 @@ function daysLeft(iso: string | null) {
 /* ── Admin Dashboard ── */
 .admin-badge {
   font-family: var(--font-ui);
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1079,7 +1079,7 @@ function daysLeft(iso: string | null) {
 /* Section card title */
 .section-card-title {
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: var(--text-base);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1088,7 +1088,7 @@ function daysLeft(iso: string | null) {
 }
 
 .section-card-sub {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
@@ -1098,12 +1098,12 @@ function daysLeft(iso: string | null) {
   align-items: center;
   gap: var(--space-3);
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 
 .detail-sub {
   font-family: var(--font-ui);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -1132,7 +1132,7 @@ function daysLeft(iso: string | null) {
 
 .ccb-label {
   font-family: var(--font-ui);
-  font-size: 0.62rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.14em;
   color: rgba(200, 164, 52, 0.6);
@@ -1140,7 +1140,7 @@ function daysLeft(iso: string | null) {
 
 .ccb-value {
   font-family: var(--font-display);
-  font-size: 1.3rem;
+  font-size: var(--text-xl);
   font-weight: 700;
   color: var(--amber);
 }
@@ -1158,7 +1158,7 @@ function daysLeft(iso: string | null) {
   flex: 1;
   padding: 0.65rem 1rem;
   font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -1181,7 +1181,7 @@ function daysLeft(iso: string | null) {
 
 /* Edit user tag */
 .edit-user-tag {
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   padding-bottom: var(--space-2);
   border-bottom: 1px solid var(--wire);

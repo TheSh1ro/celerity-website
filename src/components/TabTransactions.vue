@@ -51,7 +51,7 @@ function formatDateTime(date: string | null) {
       <div v-else-if="userStore.transactions.length === 0" class="empty-state">
         <div class="empty-state-icon">◈</div>
         <p>Nenhuma transação registrada</p>
-        <p style="font-size: 0.85rem; margin-top: var(--space-1)">
+        <p style="font-size: var(--text-sm); margin-top: var(--space-1)">
           As movimentações de crédito aparecerão aqui
         </p>
       </div>
@@ -80,7 +80,7 @@ function formatDateTime(date: string | null) {
               <td>
                 <div class="tx-label">{{ tx.label }}</div>
               </td>
-              <td class="mono" style="font-size: 0.82rem; color: var(--text-muted)">
+              <td class="mono" style="font-size: var(--text-xs); color: var(--text-muted)">
                 {{ formatDateTime(tx.created_at) }}
               </td>
               <td style="text-align: right">
@@ -100,13 +100,13 @@ function formatDateTime(date: string | null) {
     <!-- Legend -->
     <div class="tx-legend">
       <div class="tx-legend-item">
-        <span class="tx-icon tx-icon--credit" style="width: 22px; height: 22px; font-size: 0.7rem"
+        <span class="tx-icon tx-icon--credit" style="width: 22px; height: 22px; font-size: var(--text-2xs)"
           >↑</span
         >
         <span>Entrada de créditos</span>
       </div>
       <div class="tx-legend-item">
-        <span class="tx-icon tx-icon--debit" style="width: 22px; height: 22px; font-size: 0.7rem"
+        <span class="tx-icon tx-icon--debit" style="width: 22px; height: 22px; font-size: var(--text-2xs)"
           >↓</span
         >
         <span>Saída de créditos</span>
@@ -123,7 +123,7 @@ function formatDateTime(date: string | null) {
   align-items: center;
   justify-content: center;
   font-family: var(--font-display);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -142,7 +142,7 @@ function formatDateTime(date: string | null) {
 
 .tx-label {
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.3;
@@ -150,7 +150,7 @@ function formatDateTime(date: string | null) {
 
 .tx-description {
   font-family: var(--font-body);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   margin-top: 2px;
   line-height: 1.3;
@@ -158,7 +158,7 @@ function formatDateTime(date: string | null) {
 
 .tx-amount {
   font-family: var(--font-display);
-  font-size: 1rem;
+  font-size: var(--text-base);
   font-weight: 700;
   letter-spacing: 0.04em;
 }
@@ -171,7 +171,7 @@ function formatDateTime(date: string | null) {
 }
 
 .tx-balance {
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -189,7 +189,7 @@ function formatDateTime(date: string | null) {
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-body);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 </style>

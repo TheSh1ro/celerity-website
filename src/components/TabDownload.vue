@@ -102,7 +102,7 @@
             <div class="step-content">
               Cole o comando abaixo no campo e pressione <kbd>Enter</kbd>:
               <div class="command-box">
-                <code class="command-text"
+                <code class="command-text" style="color: var(--green-light)"
                   >reg add "HKCU\Software\ytb-mp3" /v alternative_mode /t REG_DWORD /d 0 /f</code
                 >
                 <button
@@ -349,7 +349,7 @@ onMounted(loadConfig)
 }
 
 .download-icon {
-  font-size: 1.25rem;
+  font-size: var(--text-xl);
   flex-shrink: 0;
 }
 
@@ -362,7 +362,7 @@ onMounted(loadConfig)
 
 .download-name {
   font-family: var(--font-ui);
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--text-secondary);
@@ -370,7 +370,7 @@ onMounted(loadConfig)
 
 .download-meta {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   letter-spacing: 0.04em;
 }
@@ -425,7 +425,7 @@ onMounted(loadConfig)
 
 .accordion-index {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   color: var(--text-muted);
   letter-spacing: 0.08em;
   flex-shrink: 0;
@@ -433,7 +433,7 @@ onMounted(loadConfig)
 
 .accordion-title {
   font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   letter-spacing: 0.08em;
   color: var(--text-secondary);
@@ -444,7 +444,7 @@ onMounted(loadConfig)
 }
 
 .accordion-chevron {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   color: var(--text-muted);
   transition: transform 0.2s ease;
   flex-shrink: 0;
@@ -500,7 +500,7 @@ onMounted(loadConfig)
 }
 
 .tutorial-intro {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   line-height: 1.5;
   margin: 0;
@@ -527,14 +527,14 @@ onMounted(loadConfig)
 
 .tutorial-item-label {
   font-family: var(--font-mono);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--color-primary, #d4a843);
 }
 
 .tutorial-item-desc {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   line-height: 1.45;
 }
@@ -561,7 +561,7 @@ onMounted(loadConfig)
   border-radius: 50%;
   background: var(--color-primary, #6c63ff);
   color: #fff;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -570,7 +570,7 @@ onMounted(loadConfig)
 
 .step-content {
   flex: 1;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -582,7 +582,7 @@ kbd {
   border-radius: 4px;
   background: var(--bg-elevated);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--text-primary);
 }
 
@@ -600,7 +600,7 @@ kbd {
 .command-text {
   flex: 1;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   word-break: break-all;
 }
@@ -612,7 +612,7 @@ kbd {
   border-radius: var(--radius-sm);
   padding: 2px 8px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   transition:
     color 0.2s,

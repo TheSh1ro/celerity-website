@@ -12,7 +12,7 @@
   /* Text */
   --text-primary: #e8e0cc;
   --text-secondary: #a4b09a;
-  --text-muted: #5e7060;
+  --text-muted: #a4b09a;
   --text-disabled: #38473a;
 
   /* Amber — primary accent */
@@ -52,6 +52,18 @@
   --font-mono: 'Share Tech Mono', monospace; /* Chaves, códigos */
   /* Backwards compat */
   --font-sans: 'Barlow', sans-serif;
+
+  /* Font sizes — use these vars in component <style> blocks */
+  /* Mirrors the .text-* utility classes for use inside scoped CSS  */
+  --text-2xs: 0.72rem; /* 10.8px — micro labels, uppercase caps */
+  --text-xs: 0.8rem; /* 12px   — small labels, badges          */
+  --text-sm: 0.9rem; /* 13.5px — secondary text, hints         */
+  --text-base: 1rem; /* 15px   — body / default                */
+  --text-lg: 1.125rem; /* 16.9px — slightly prominent text       */
+  --text-xl: 1.25rem; /* 18.75px — subheadings                  */
+  --text-2xl: 1.5rem; /* 22.5px — section headings              */
+  --text-3xl: 1.875rem; /* 28px   — page headings                 */
+  --text-4xl: 2.5rem; /* 37.5px — large display numbers         */
 
   /* Spacing */
   --space-1: 0.25rem;
@@ -114,7 +126,7 @@ html {
 /* ─── BASE ───────────────────────────────────────────────────────────────── */
 body {
   font-family: var(--font-body);
-  font-size: 1rem; /* 15px */
+  font-size: var(--text-base); /* 15px */
   font-weight: 400;
   background-color: var(--bg-void);
   background-image:
@@ -181,25 +193,25 @@ label,
 }
 
 .text-xs {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 .text-sm {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
 .text-base {
-  font-size: 1rem;
+  font-size: var(--text-base);
 }
 .text-lg {
-  font-size: 1.125rem;
+  font-size: var(--text-lg);
 }
 .text-xl {
-  font-size: 1.25rem;
+  font-size: var(--text-xl);
 }
 .text-2xl {
-  font-size: 1.5rem;
+  font-size: var(--text-2xl);
 }
 .text-3xl {
-  font-size: 1.875rem;
+  font-size: var(--text-3xl);
 }
 
 .font-light {
@@ -233,7 +245,7 @@ label,
 /* Labels de interface — mantém Barlow Condensed com tamanho mínimo legível */
 .field-label {
   font-family: var(--font-ui);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -314,6 +326,14 @@ label,
   border-top: 1px solid var(--wire);
 }
 
+.card-title {
+  color: var(--text-primary);
+}
+
+.card-subtitle {
+  color: var(--text-secondary);
+}
+
 /* ─── BUTTONS ────────────────────────────────────────────────────────────── */
 
 .btn {
@@ -323,7 +343,7 @@ label,
   gap: var(--space-2);
   font-family: var(--font-ui);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.1em;
   padding: 0.6rem 1.25rem;
@@ -393,12 +413,12 @@ label,
 
 .btn-sm {
   padding: 0.35rem 0.875rem;
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
 }
 
 .btn-lg {
   padding: 0.75rem 1.75rem;
-  font-size: 0.95rem;
+  font-size: var(--text-base);
 }
 
 .btn-full {
@@ -414,7 +434,7 @@ label,
 
 .form-label {
   font-family: var(--font-ui);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -424,7 +444,7 @@ label,
 .form-input,
 .form-select {
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   background: var(--bg-void);
   border: 1px solid var(--wire-active);
   border-radius: var(--radius-sm);
@@ -445,7 +465,7 @@ label,
 }
 
 .form-hint {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -458,7 +478,7 @@ table {
 
 th {
   font-family: var(--font-ui);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -471,7 +491,7 @@ th {
 
 td {
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--wire);
@@ -492,7 +512,7 @@ tr:hover td {
   align-items: center;
   gap: 4px;
   font-family: var(--font-ui);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
@@ -539,7 +559,7 @@ tr:hover td {
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
 }
 
@@ -596,7 +616,7 @@ tr:hover td {
 
 .modal-title {
   font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -605,7 +625,7 @@ tr:hover td {
 .modal-body {
   padding: var(--space-6);
   font-family: var(--font-body);
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   line-height: 1.6;
 }
 
@@ -656,7 +676,7 @@ tr:hover td {
   border: 1px solid var(--wire-active);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-primary);
   box-shadow: var(--shadow-md);
   animation: slideIn 0.2s ease;
@@ -699,7 +719,7 @@ tr:hover td {
 
 .tab {
   font-family: var(--font-ui);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -756,7 +776,7 @@ tr:hover td {
   background: var(--amber);
   color: var(--bg-void);
   font-family: var(--font-ui);
-  font-size: 0.65rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.12em;
   padding: 0.2rem 0.6rem;
@@ -769,7 +789,7 @@ tr:hover td {
 
 .plan-name {
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: var(--text-xl);
   font-weight: 700;
   letter-spacing: 0.05em;
   margin-bottom: var(--space-1);
@@ -777,7 +797,7 @@ tr:hover td {
 
 .plan-description {
   font-family: var(--font-ui);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -792,7 +812,7 @@ tr:hover td {
 
 .plan-price-value {
   font-family: var(--font-display);
-  font-size: 2.5rem;
+  font-size: var(--text-4xl);
   font-weight: 700;
   color: var(--amber);
   line-height: 1;
@@ -800,7 +820,7 @@ tr:hover td {
 
 .plan-price-unit {
   font-family: var(--font-ui);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -820,7 +840,7 @@ tr:hover td {
 }
 
 .key-value {
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   letter-spacing: 0.1em;
   color: var(--amber);
 }
@@ -859,7 +879,7 @@ tr:hover td {
   gap: var(--space-3);
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.3rem;
+  font-size: var(--text-xl);
   letter-spacing: 0.06em;
   color: var(--text-primary);
   text-transform: uppercase;
@@ -872,7 +892,7 @@ tr:hover td {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
   color: var(--bg-void);
 }
 
@@ -894,7 +914,7 @@ tr:hover td {
 
 .pill-label {
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -903,7 +923,7 @@ tr:hover td {
 
 .pill-value {
   font-family: var(--font-display);
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: 0.04em;
@@ -930,7 +950,7 @@ tr:hover td {
 .table-sm th,
 .table-sm td {
   padding: 0.5rem var(--space-4);
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 /* ─── STATUS INDICATORS ──────────────────────────────────────────────────── */
@@ -1020,7 +1040,7 @@ tr:hover td {
 /* ─── SECTION HEADER ─────────────────────────────────────────────────────── */
 .section-title {
   font-family: var(--font-ui);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -1041,12 +1061,12 @@ tr:hover td {
   padding: var(--space-12);
   color: var(--text-muted);
   font-family: var(--font-ui);
-  font-size: 0.95rem;
+  font-size: var(--text-base);
   letter-spacing: 0.06em;
 }
 
 .empty-state-icon {
-  font-size: 2.5rem;
+  font-size: var(--text-4xl);
   margin-bottom: var(--space-4);
   opacity: 0.3;
 }

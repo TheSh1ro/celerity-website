@@ -10,8 +10,8 @@
         <div class="alert alert-info">
           <span>◎</span>
           <div>
-            <p style="font-weight: 700; font-size: 0.95rem; letter-spacing: 0.06em">EM BREVE</p>
-            <p style="font-size: 0.9rem; margin-top: 2px">
+            <p style="font-weight: 700; font-size: var(--text-base); letter-spacing: 0.06em">EM BREVE</p>
+            <p style="font-size: var(--text-sm); margin-top: 2px">
               A integração com gateway de pagamento está sendo configurada. Entre em contato com o
               administrador para adicionar créditos manualmente.
             </p>

@@ -158,7 +158,7 @@ async function handleBuy() {
 
 .lsb-label {
   font-family: var(--font-ui);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -168,13 +168,13 @@ async function handleBuy() {
 
 .lsb-value {
   font-family: var(--font-display);
-  font-size: 2.5rem;
+  font-size: var(--text-4xl);
   font-weight: 700;
   line-height: 1;
 }
 
 .lsb-date {
-  font-size: 1rem;
+  font-size: var(--text-base);
   color: var(--text-secondary);
 }
 
@@ -198,7 +198,7 @@ async function handleBuy() {
 
 .confirm-label {
   font-family: var(--font-ui);
-  font-size: 0.76rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -206,7 +206,7 @@ async function handleBuy() {
 }
 
 .confirm-value {
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--amber);
 }
