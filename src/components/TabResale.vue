@@ -1,6 +1,6 @@
 <!-- components/TabResale.vue -->
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
 import type { Key, ResalePlan } from '@/stores/user'
@@ -14,23 +14,12 @@ const showGeneratedKeyModal = ref(false)
 const showConfirmGenerateModal = ref(false)
 const selectedKey = ref<Key | null>(null)
 const generatedKey = ref('')
-const selectedPlanDays = ref<number | null>(null)
+const pendingPlan = ref<ResalePlan | null>(null)
 
-// Auto-select first available plan
-const selectedPlan = computed<ResalePlan | null>(() => {
-  if (!userStore.resalePlans.length) return null
-  const days = selectedPlanDays.value
-  return userStore.resalePlans.find((p) => p.duration_days === days) ?? null
-})
-
-function selectPlan(plan: ResalePlan) {
-  selectedPlanDays.value = plan.duration_days
+function openConfirm(plan: ResalePlan) {
+  pendingPlan.value = plan
+  showConfirmGenerateModal.value = true
 }
-
-const canGenerateKey = computed(() => {
-  if (!selectedPlan.value) return false
-  return (userStore.profile?.credits || 0) >= selectedPlan.value.price
-})
 
 function formatDate(date: string | null) {
   if (!date) return '—'
@@ -71,8 +60,8 @@ async function handleRevert() {
 }
 
 async function handleGenerateKey() {
-  if (!selectedPlan.value) return
-  const result = await userStore.generateKey(selectedPlan.value.duration_days)
+  if (!pendingPlan.value) return
+  const result = await userStore.generateKey(pendingPlan.value.duration_days)
   if (result.ok) {
     generatedKey.value = result.key || ''
     showGeneratedKeyModal.value = true
@@ -81,6 +70,7 @@ async function handleGenerateKey() {
     toastStore.error(result.error || 'Erro ao gerar key')
   }
   showConfirmGenerateModal.value = false
+  pendingPlan.value = null
 }
 </script>
 
@@ -99,18 +89,26 @@ async function handleGenerateKey() {
       <div class="card-body">
         <!-- Plan selector -->
         <div v-if="userStore.resalePlans.length > 0" style="margin-bottom: var(--space-4)">
-          <p class="resale-section-label">SELECIONE O PLANO</p>
-          <div class="plan-selector">
-            <button
-              v-for="plan in userStore.resalePlans"
-              :key="plan.duration_days"
-              class="plan-card"
-              :class="{ 'is-selected': selectedPlan?.duration_days === plan.duration_days }"
-              @click="selectPlan(plan)"
-            >
-              <span class="plan-card-days">{{ plan.duration_days }}<small>d</small></span>
-              <span class="plan-card-price">{{ plan.price }} <small>créditos</small></span>
-            </button>
+          <div class="plan-grid">
+            <div v-for="plan in userStore.resalePlans" :key="plan.duration_days" class="plan-card">
+              <div class="plan-header">
+                <h3 class="plan-name">{{ plan.duration_days }} Dias</h3>
+                <p class="plan-description">Key de revenda</p>
+              </div>
+              <div class="plan-price">
+                <span class="plan-price-value">{{ plan.price }}</span>
+                <span class="plan-price-unit">créditos</span>
+              </div>
+              <button
+                class="btn btn-primary btn-full"
+                :disabled="
+                  (userStore.profile?.credits || 0) < plan.price || userStore.loading.generateKey
+                "
+                @click="openConfirm(plan)"
+              >
+                Gerar Key
+              </button>
+            </div>
           </div>
         </div>
 
@@ -145,13 +143,8 @@ async function handleGenerateKey() {
                 <div class="resale-hiw-step-body">
                   <p class="resale-hiw-step-label">GERE A KEY</p>
                   <p class="resale-hiw-step-text">
-                    Selecione um plano e clique em "Gerar Nova Key". Serão descontados
-                    <strong style="color: var(--amber)">{{ selectedPlan?.price }} créditos</strong>
-                    da sua conta e uma key de
-                    <strong style="color: var(--green)"
-                      >{{ selectedPlan?.duration_days }} dias</strong
-                    >
-                    será criada para você.
+                    Selecione um plano e clique em "Gerar Key". Os créditos do plano serão
+                    descontados da sua conta e uma key com o período correspondente será criada.
                   </p>
                 </div>
               </div>
@@ -208,53 +201,6 @@ async function handleGenerateKey() {
             </div>
           </div>
         </div>
-
-        <!-- Credit cost summary -->
-        <div v-if="selectedPlan" class="resale-cost-row">
-          <div class="resale-cost-item">
-            <span class="resale-cost-label">CUSTO POR KEY</span>
-            <span class="resale-cost-value">
-              {{ selectedPlan.price }}
-              <span class="resale-cost-unit">créditos</span>
-            </span>
-          </div>
-          <div class="resale-cost-divider"></div>
-          <div class="resale-cost-item">
-            <span class="resale-cost-label">DURAÇÃO</span>
-            <span class="resale-cost-value">
-              {{ selectedPlan.duration_days }}
-              <span class="resale-cost-unit">dias</span>
-            </span>
-          </div>
-          <div class="resale-cost-divider"></div>
-          <div class="resale-cost-item">
-            <span class="resale-cost-label">SEUS CRÉDITOS</span>
-            <span
-              class="resale-cost-value"
-              :style="{ color: canGenerateKey ? 'var(--green)' : 'var(--red)' }"
-            >
-              {{ userStore.profile?.credits }}
-            </span>
-          </div>
-        </div>
-
-        <div v-if="selectedPlan" style="margin-top: var(--space-5)">
-          <button
-            class="btn btn-primary btn-lg"
-            :disabled="!canGenerateKey || userStore.loading.generateKey"
-            @click="showConfirmGenerateModal = true"
-          >
-            + GERAR NOVA KEY
-          </button>
-        </div>
-
-        <p
-          v-if="selectedPlan && (userStore.profile?.credits || 0) < selectedPlan.price"
-          class="alert-inline alert-warning-inline"
-          style="margin-top: var(--space-4)"
-        >
-          ⚠ Créditos insuficientes. Você precisa de {{ selectedPlan.price }} créditos.
-        </p>
       </div>
     </div>
 
@@ -273,45 +219,49 @@ async function handleGenerateKey() {
           <p>Nenhuma key gerada ainda</p>
           <p style="font-size: 0.85rem; margin-top: var(--space-1)">Gere sua primeira key acima</p>
         </div>
-        <table v-else>
-          <thead>
-            <tr>
-              <th>Key</th>
-              <th>Duração</th>
-              <th>Criada em</th>
-              <th>Status</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="key in userStore.keys" :key="key.id">
-              <td>
-                <span class="key-value mono">{{ key.key }}</span>
-              </td>
-              <td class="mono text-sm">{{ key.duration_days }}d</td>
-              <td class="mono text-sm">{{ formatDate(key.created_at) }}</td>
-              <td>
-                <span :class="['badge', keyStatusBadge(key)]">
-                  {{ keyStatusLabel(key) }}
-                </span>
-              </td>
-              <td>
-                <div v-if="!key.reverted" class="flex gap-2">
-                  <button class="btn btn-ghost btn-sm" @click="copyKey(key.key)">Copiar</button>
-                  <button
-                    v-if="!key.used && !key.reverted"
-                    class="btn btn-danger btn-sm"
-                    :disabled="userStore.loading.revertKey === key.id"
-                    @click="confirmRevert(key)"
-                  >
-                    <span class="spinner" v-if="userStore.loading.revertKey === key.id" />
-                    <span v-else>Reverter</span>
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Duração</th>
+                <th>Criada em</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="key in userStore.keys" :key="key.id">
+                <td data-label="Key">
+                  <span class="key-value mono">{{ key.key }}</span>
+                </td>
+                <td data-label="Duração" class="mono text-sm">{{ key.duration_days }}d</td>
+                <td data-label="Criada em" class="mono text-sm">
+                  {{ formatDate(key.created_at) }}
+                </td>
+                <td data-label="Status">
+                  <span :class="['badge', keyStatusBadge(key)]">
+                    {{ keyStatusLabel(key) }}
+                  </span>
+                </td>
+                <td data-label="Ações">
+                  <div v-if="!key.reverted" class="flex gap-2">
+                    <button class="btn btn-ghost btn-sm" @click="copyKey(key.key)">Copiar</button>
+                    <button
+                      v-if="!key.used && !key.reverted"
+                      class="btn btn-danger btn-sm"
+                      :disabled="userStore.loading.revertKey === key.id"
+                      @click="confirmRevert(key)"
+                    >
+                      <span class="spinner" v-if="userStore.loading.revertKey === key.id" />
+                      <span v-else>Reverter</span>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -330,18 +280,18 @@ async function handleGenerateKey() {
         <div class="confirm-row">
           <div>
             <p class="confirm-label">PLANO SELECIONADO</p>
-            <p class="confirm-value">{{ selectedPlan?.duration_days }} dias</p>
+            <p class="confirm-value">{{ pendingPlan?.duration_days }} dias</p>
           </div>
           <div style="text-align: right">
             <p class="confirm-label">CUSTO</p>
-            <p class="confirm-value">{{ selectedPlan?.price }} créditos</p>
+            <p class="confirm-value">{{ pendingPlan?.price }} créditos</p>
           </div>
         </div>
         <div class="modal-policy-box modal-policy-ok" style="margin-top: var(--space-4)">
           <span class="modal-policy-icon">✓</span>
           <span>
-            Uma key de <strong>{{ selectedPlan?.duration_days }} dias</strong> será gerada e
-            <strong>{{ selectedPlan?.price }} créditos</strong> serão descontados da sua conta.
+            Uma key de <strong>{{ pendingPlan?.duration_days }} dias</strong> será gerada e
+            <strong>{{ pendingPlan?.price }} créditos</strong> serão descontados da sua conta.
           </span>
         </div>
         <div class="modal-policy-box modal-policy-warn">
@@ -439,81 +389,74 @@ async function handleGenerateKey() {
 </template>
 
 <style scoped>
-/* Plan selector */
-.resale-section-label {
-  font-family: var(--font-ui);
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-muted);
-  margin-bottom: var(--space-3);
+/* Responsive table wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.plan-selector {
-  display: flex;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
+@media (max-width: 600px) {
+  .table-responsive table,
+  .table-responsive thead,
+  .table-responsive tbody,
+  .table-responsive th,
+  .table-responsive td,
+  .table-responsive tr {
+    display: block;
+  }
 
-.plan-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  padding: var(--space-4) var(--space-6);
-  background: var(--bg-surface);
-  border: 1px solid var(--wire);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    background 0.15s;
-  min-width: 100px;
-}
+  .table-responsive thead {
+    display: none;
+  }
 
-.plan-card:hover {
-  border-color: var(--wire-active);
-  background: rgba(255, 255, 255, 0.03);
-}
+  .table-responsive tbody tr {
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--wire);
+  }
 
-.plan-card.is-selected {
-  border-color: var(--amber);
-  background: var(--amber-dim);
-}
+  .table-responsive tbody tr:last-child {
+    border-bottom: none;
+  }
 
-.plan-card-days {
-  font-family: var(--font-display);
-  font-size: 1.8rem;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-}
+  .table-responsive td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-1) 0;
+    border: none;
+  }
 
-.plan-card.is-selected .plan-card-days {
-  color: var(--amber);
-}
+  .table-responsive td::before {
+    content: attr(data-label);
+    font-family: var(--font-ui);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 80px;
+  }
 
-.plan-card-days small {
-  font-size: 1rem;
-  font-weight: 400;
-  color: var(--text-muted);
-  margin-left: 1px;
-}
+  .table-responsive td[data-label='Key'] {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-.plan-card-price {
-  font-family: var(--font-ui);
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--text-muted);
-}
+  .table-responsive td[data-label='Key']::before {
+    min-width: unset;
+  }
 
-.plan-card.is-selected .plan-card-price {
-  color: rgba(200, 164, 52, 0.75);
-}
+  .table-responsive td[data-label='Ações'] {
+    justify-content: flex-end;
+    padding-top: var(--space-2);
+  }
 
-.plan-card-price small {
-  font-weight: 400;
+  .table-responsive td[data-label='Ações']::before {
+    display: none;
+  }
 }
 
 /* How it works */
@@ -632,59 +575,6 @@ async function handleGenerateKey() {
   font-size: 0.9rem;
   color: var(--text-secondary);
   line-height: 1.55;
-}
-
-/* Cost row */
-.resale-cost-row {
-  display: flex;
-  align-items: center;
-  background: var(--bg-surface);
-  border: 1px solid var(--wire);
-  border-radius: var(--radius-sm);
-  padding: var(--space-4) var(--space-5);
-  margin-top: var(--space-4);
-}
-
-.resale-cost-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 var(--space-5);
-}
-
-.resale-cost-item:first-child {
-  padding-left: 0;
-}
-
-.resale-cost-label {
-  font-family: var(--font-ui);
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--text-muted);
-}
-
-.resale-cost-value {
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: var(--amber);
-  line-height: 1;
-}
-
-.resale-cost-unit {
-  font-size: 0.78rem;
-  font-family: var(--font-ui);
-  color: var(--text-muted);
-  font-weight: 400;
-}
-
-.resale-cost-divider {
-  width: 1px;
-  height: 32px;
-  background: var(--wire);
-  flex-shrink: 0;
 }
 
 /* Inline alerts */
