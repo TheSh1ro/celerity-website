@@ -3,7 +3,7 @@
 /* ─── DESIGN TOKENS ─────────────────────────────────────────────────────── */
 :root {
   /* Backgrounds */
-  --bg-void: #060908;
+  --bg-void: rgba(0, 0, 0, 0.3);
   --bg-base: #0b1410;
   --bg-surface: #101d14;
   --bg-elevated: #162419;
@@ -14,6 +14,7 @@
   --text-secondary: #a4b09a;
   --text-muted: #a4b09a;
   --text-disabled: #38473a;
+  --text-on-accent: #060908;
 
   /* Amber — primary accent */
   --amber: #c8a434;
@@ -128,7 +129,7 @@ body {
   font-family: var(--font-body);
   font-size: var(--text-base); /* 15px */
   font-weight: 400;
-  background-color: var(--bg-void);
+  background-color: var(--text-on-accent);
   background-image:
     linear-gradient(rgba(58, 170, 82, 0.022) 1px, transparent 1px),
     linear-gradient(90deg, rgba(58, 170, 82, 0.022) 1px, transparent 1px);
@@ -361,7 +362,7 @@ label,
 
 .btn-primary {
   background: var(--amber);
-  color: var(--bg-void);
+  color: var(--text-on-accent);
   border-color: var(--amber);
 }
 .btn-primary:hover:not(:disabled) {
@@ -383,7 +384,7 @@ label,
 
 .btn-success {
   background: var(--green);
-  color: var(--bg-void);
+  color: var(--text-on-accent);
   border-color: var(--green);
 }
 .btn-success:hover:not(:disabled) {
@@ -774,7 +775,7 @@ tr:hover td {
   top: -1px;
   right: var(--space-5);
   background: var(--amber);
-  color: var(--bg-void);
+  color: var(--text-on-accent);
   font-family: var(--font-ui);
   font-size: var(--text-2xs);
   font-weight: 700;
@@ -893,7 +894,7 @@ tr:hover td {
   align-items: center;
   justify-content: center;
   font-size: var(--text-lg);
-  color: var(--bg-void);
+  color: var(--text-on-accent);
 }
 
 .header-nav {
