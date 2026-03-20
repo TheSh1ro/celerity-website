@@ -1,8 +1,15 @@
 <!-- components/TabTransactions.vue -->
 <script setup lang="ts">
+import { onMounted } from 'vue'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
+
+onMounted(() => {
+  if (userStore.transactions.length === 0) {
+    userStore.loadTransactions()
+  }
+})
 
 function isCredit(amount: number) {
   return amount > 0
@@ -100,13 +107,17 @@ function formatDateTime(date: string | null) {
     <!-- Legend -->
     <div class="tx-legend">
       <div class="tx-legend-item">
-        <span class="tx-icon tx-icon--credit" style="width: 22px; height: 22px; font-size: var(--text-2xs)"
+        <span
+          class="tx-icon tx-icon--credit"
+          style="width: 22px; height: 22px; font-size: var(--text-2xs)"
           >↑</span
         >
         <span>Entrada de créditos</span>
       </div>
       <div class="tx-legend-item">
-        <span class="tx-icon tx-icon--debit" style="width: 22px; height: 22px; font-size: var(--text-2xs)"
+        <span
+          class="tx-icon tx-icon--debit"
+          style="width: 22px; height: 22px; font-size: var(--text-2xs)"
           >↓</span
         >
         <span>Saída de créditos</span>

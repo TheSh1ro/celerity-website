@@ -1,6 +1,6 @@
 <!-- UserView.vue -->
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import {
   PanelLeft,
   RefreshCw,
@@ -13,17 +13,10 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { useToastStore } from '@/stores/toast'
-import TabLicense from '@/components/TabLicense.vue'
-import TabResale from '@/components/TabResale.vue'
-import TabCredits from '@/components/TabCredits.vue'
-import TabTransactions from '@/components/TabTransactions.vue'
-import TabDownload from '@/components/TabDownload.vue'
 
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const toastStore = useToastStore()
-
-const activeTab = ref<'license' | 'resale' | 'credits' | 'transactions' | 'download'>('license')
 
 // ── Online users counter (fake / demo) ──
 const TOTAL_REGISTERED = 11
@@ -56,12 +49,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (onlineInterval) clearInterval(onlineInterval)
-})
-
-watch(activeTab, (tab) => {
-  if (tab === 'transactions' && userStore.transactions.length === 0) {
-    userStore.loadTransactions()
-  }
 })
 
 function formatDate(date: string | null) {
@@ -141,42 +128,26 @@ function formatDate(date: string | null) {
         <aside class="dash-sidebar">
           <nav class="side-nav">
             <div class="side-nav-header">MÓDULOS</div>
-            <button
-              class="side-nav-item"
-              :class="{ active: activeTab === 'license' }"
-              @click="activeTab = 'license'"
-            >
+            <RouterLink class="side-nav-item" :to="{ name: 'license' }" active-class="active">
               <PanelLeft class="side-nav-icon" />Minha Licença
-            </button>
-            <button
-              class="side-nav-item"
-              :class="{ active: activeTab === 'resale' }"
-              @click="activeTab = 'resale'"
-            >
+            </RouterLink>
+            <RouterLink class="side-nav-item" :to="{ name: 'resale' }" active-class="active">
               <RefreshCw class="side-nav-icon" />Revenda de Keys
-            </button>
-            <button
-              class="side-nav-item"
-              :class="{ active: activeTab === 'credits' }"
-              @click="activeTab = 'credits'"
-            >
+            </RouterLink>
+            <RouterLink class="side-nav-item" :to="{ name: 'credits' }" active-class="active">
               <CreditCard class="side-nav-icon" />Comprar Créditos
-            </button>
-            <button
-              class="side-nav-item"
-              :class="{ active: activeTab === 'transactions' }"
-              @click="activeTab = 'transactions'"
-            >
+            </RouterLink>
+            <RouterLink class="side-nav-item" :to="{ name: 'transactions' }" active-class="active">
               <ArrowLeftRight class="side-nav-icon" />Transações
-            </button>
-            <button
+            </RouterLink>
+            <RouterLink
               v-if="!userStore.isExpired || userStore.profile.credits"
               class="side-nav-item"
-              :class="{ active: activeTab === 'download' }"
-              @click="activeTab = 'download'"
+              :to="{ name: 'download' }"
+              active-class="active"
             >
               <Download class="side-nav-icon" />Download
-            </button>
+            </RouterLink>
           </nav>
 
           <div class="side-license-card">
@@ -212,11 +183,7 @@ function formatDate(date: string | null) {
         </aside>
 
         <div class="dash-content">
-          <TabLicense v-if="activeTab === 'license'" />
-          <TabResale v-if="activeTab === 'resale'" />
-          <TabCredits v-if="activeTab === 'credits'" />
-          <TabTransactions v-if="activeTab === 'transactions'" />
-          <TabDownload v-if="activeTab === 'download'" />
+          <RouterView />
         </div>
       </div>
     </main>
@@ -398,6 +365,7 @@ function formatDate(date: string | null) {
   cursor: pointer;
   transition: all var(--transition-fast);
   text-align: left;
+  text-decoration: none;
 }
 
 .side-nav-item:hover {

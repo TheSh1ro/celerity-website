@@ -18,9 +18,41 @@ const router = createRouter({
     },
     {
       path: '/',
-      name: 'user',
       component: () => import('../views/UserView.vue'),
-      meta: { requiresAuth: true, title: 'Dashboard' },
+      meta: { requiresAuth: true },
+      children: [
+        { path: '', redirect: { name: 'license' } },
+        {
+          path: 'license',
+          name: 'license',
+          component: () => import('@/components/TabLicense.vue'),
+          meta: { title: 'Minha Licença' },
+        },
+        {
+          path: 'resale',
+          name: 'resale',
+          component: () => import('@/components/TabResale.vue'),
+          meta: { title: 'Revenda de Keys' },
+        },
+        {
+          path: 'credits',
+          name: 'credits',
+          component: () => import('@/components/TabCredits.vue'),
+          meta: { title: 'Comprar Créditos' },
+        },
+        {
+          path: 'transactions',
+          name: 'transactions',
+          component: () => import('@/components/TabTransactions.vue'),
+          meta: { title: 'Transações' },
+        },
+        {
+          path: 'download',
+          name: 'download',
+          component: () => import('@/components/TabDownload.vue'),
+          meta: { title: 'Download' },
+        },
+      ],
     },
   ],
 })
@@ -37,7 +69,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.guestOnly && auth.isAuthenticated) {
-    return { name: 'user' }
+    return { name: 'license' }
   }
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
@@ -45,7 +77,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAdmin && !auth.isAdmin) {
-    return { name: 'user' }
+    return { name: 'license' }
   }
 })
 

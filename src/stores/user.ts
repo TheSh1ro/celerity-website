@@ -47,6 +47,11 @@ export interface Transaction {
   created_at: string
 }
 
+export interface AppConfig {
+  executableUrl: string
+  minVersion: string
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 export const useUserStore = defineStore('user', () => {
@@ -58,12 +63,15 @@ export const useUserStore = defineStore('user', () => {
   const resalePlans = ref<ResalePlan[]>([])
   const licensePlans = ref<LicensePlan[]>([])
   const transactions = ref<Transaction[]>([])
+  const appConfig = ref<AppConfig | null>(null)
+  const appConfigError = ref('')
 
   const loading = ref({
     keys: false,
     resalePlans: false,
     licensePlans: false,
     transactions: false,
+    appConfig: false,
     generateKey: false,
     revertKey: null as string | null,
     buyDays: null as number | null,
@@ -145,6 +153,35 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  async function loadAppConfig(): Promise<void> {
+    loading.value.appConfig = true
+    appConfigError.value = ''
+    try {
+      const result = await userRpc<{ status: string; config: Record<string, string> }>(
+        'get_app_config',
+        {},
+      )
+
+      if (!result.ok) {
+        appConfigError.value = result.error
+        return
+      }
+
+      const config = result.data.config ?? {}
+      const executableUrl = config['executable_url'] ?? ''
+      const minVersion = config['min_version'] ?? ''
+
+      if (!executableUrl) {
+        appConfigError.value = 'URL de download não configurada.'
+        return
+      }
+
+      appConfig.value = { executableUrl, minVersion }
+    } finally {
+      loading.value.appConfig = false
+    }
+  }
+
   async function generateKey(
     durationDays: number,
   ): Promise<{ ok: true; key: string } | { ok: false; error: string }> {
@@ -210,6 +247,8 @@ export const useUserStore = defineStore('user', () => {
     resalePlans,
     licensePlans,
     transactions,
+    appConfig,
+    appConfigError,
     loading,
     profile,
     daysLeft,
@@ -219,6 +258,7 @@ export const useUserStore = defineStore('user', () => {
     loadResalePlans,
     loadLicensePlans,
     loadTransactions,
+    loadAppConfig,
     generateKey,
     revertKey,
     buyDays,

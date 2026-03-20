@@ -7,28 +7,36 @@
         <p class="card-subtitle">Baixe o arquivo e atualizações do aplicativo</p>
       </div>
       <div class="card-body">
-        <div v-if="error" class="alert alert-error">
+        <div v-if="userStore.appConfigError" class="alert alert-error">
           <span>✕</span>
-          <p>{{ error }}</p>
+          <p>{{ userStore.appConfigError }}</p>
         </div>
 
-        <div class="download-grid" :style="{ opacity: loading ? 0.45 : 1 }">
+        <div class="download-grid" :style="{ opacity: userStore.loading.appConfig ? 0.45 : 1 }">
           <div class="download-card">
             <div class="download-icon">⬇</div>
             <div class="download-info">
               <div class="download-name">
-                {{ loading ? '—' : fileName }}
+                {{ userStore.loading.appConfig ? '—' : fileName }}
               </div>
               <div class="download-meta">
-                {{ loading ? '—' : `v${minVersion} · Portable (não exige instalação)` }}
+                {{
+                  userStore.loading.appConfig
+                    ? '—'
+                    : `v${userStore.appConfig?.minVersion} · Portable (não exige instalação)`
+                }}
               </div>
             </div>
             <button
               class="btn btn-primary"
-              :disabled="loading || !!error || !executableUrl"
+              :disabled="
+                userStore.loading.appConfig ||
+                !!userStore.appConfigError ||
+                !userStore.appConfig?.executableUrl
+              "
               @click="download"
             >
-              {{ loading ? 'CARREGANDO' : 'BAIXAR' }}
+              {{ userStore.loading.appConfig ? 'CARREGANDO' : 'BAIXAR' }}
             </button>
           </div>
         </div>
@@ -125,14 +133,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { userRpc } from '@/api'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-const loading = ref(true)
-const error = ref('')
-const executableUrl = ref('')
-const minVersion = ref('')
 const copySuccess = ref(false)
 const openSection = ref<string | null>(null)
 
@@ -269,8 +275,9 @@ const tutorialSections = [
 // ─── Computed ─────────────────────────────────────────────────────────────────
 
 const fileName = computed(() => {
-  if (!executableUrl.value) return ''
-  return executableUrl.value.split('/').pop() ?? executableUrl.value
+  const url = userStore.appConfig?.executableUrl
+  if (!url) return ''
+  return url.split('/').pop() ?? url
 })
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -279,36 +286,11 @@ function toggleSection(id: string): void {
   openSection.value = openSection.value === id ? null : id
 }
 
-async function loadConfig(): Promise<void> {
-  loading.value = true
-  error.value = ''
-  try {
-    const result = await userRpc<{ status: string; config: Record<string, string> }>(
-      'get_app_config',
-      {},
-    )
-
-    if (!result.ok) {
-      error.value = result.error
-      return
-    }
-
-    const config = result.data.config ?? {}
-    executableUrl.value = config['executable_url'] ?? ''
-    minVersion.value = config['min_version'] ?? ''
-
-    if (!executableUrl.value) {
-      error.value = 'URL de download não configurada.'
-    }
-  } finally {
-    loading.value = false
-  }
-}
-
 function download(): void {
-  if (!executableUrl.value) return
+  const url = userStore.appConfig?.executableUrl
+  if (!url) return
   const a = document.createElement('a')
-  a.href = executableUrl.value
+  a.href = url
   a.download = fileName.value
   a.rel = 'noopener noreferrer'
   a.click()
@@ -324,7 +306,11 @@ function copyCommand(): void {
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
 
-onMounted(loadConfig)
+onMounted(() => {
+  if (!userStore.appConfig) {
+    userStore.loadAppConfig()
+  }
+})
 </script>
 
 <style scoped>
