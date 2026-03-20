@@ -877,7 +877,7 @@ function daysLeft(iso: string | null) {
 .admin-login-page,
 .loading-page,
 .admin-dashboard-page {
-  background-color: #090f0b;
+  background-color: var(--bg-void);
   background-position: center;
   background-repeat: no-repeat;
   background-size: cover;
@@ -1125,7 +1125,7 @@ function daysLeft(iso: string | null) {
   align-items: baseline;
   gap: var(--space-2);
   background: var(--amber-dim);
-  border: 1px solid rgba(200, 164, 52, 0.2);
+  border: 1px solid var(--amber-dim);
   border-radius: var(--radius-sm);
   padding: var(--space-1) var(--space-3);
 }
@@ -1135,7 +1135,7 @@ function daysLeft(iso: string | null) {
   font-size: var(--text-2xs);
   font-weight: 700;
   letter-spacing: 0.14em;
-  color: rgba(200, 164, 52, 0.6);
+  color: var(--amber);
 }
 
 .ccb-value {

@@ -210,9 +210,9 @@ function formatDate(date: string | null) {
 .page-wrapper,
 .loading-page {
   min-height: 100dvh;
-  background-color: #090f0b;
+  background-color: var(--bg-void);
   background-image:
-    linear-gradient(to bottom, transparent 55vh, #090f0b calc(55vh + 200px)),
+    linear-gradient(to bottom, transparent 55vh, var(--bg-void) calc(55vh + 200px)),
     url('@/assets/background.png'), url('@/assets/background_repeat.png');
   background-position:
     top center,

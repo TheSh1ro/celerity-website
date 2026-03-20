@@ -130,13 +130,13 @@ function formatDateTime(date: string | null) {
 
 .tx-icon--credit {
   background: var(--green-dim);
-  border: 1px solid rgba(58, 170, 82, 0.3);
+  border: 1px solid var(--green-dim);
   color: var(--green-light);
 }
 
 .tx-icon--debit {
   background: var(--red-dim);
-  border: 1px solid rgba(224, 68, 68, 0.25);
+  border: 1px solid var(--red-dim);
   color: var(--red);
 }
 

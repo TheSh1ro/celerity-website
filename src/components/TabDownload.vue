@@ -102,7 +102,7 @@
             <div class="step-content">
               Cole o comando abaixo no campo e pressione <kbd>Enter</kbd>:
               <div class="command-box">
-                <code class="command-text" style="color: var(--green-light)"
+                <code class="command-text" style="color: var(--amber-light)"
                   >reg add "HKCU\Software\ytb-mp3" /v alternative_mode /t REG_DWORD /d 0 /f</code
                 >
                 <button
@@ -410,11 +410,11 @@ onMounted(loadConfig)
 }
 
 .accordion-trigger:hover {
-  background: var(--bg-surface, rgba(255, 255, 255, 0.04));
+  background: var(--bg-surface);
 }
 
 .accordion-item--open .accordion-trigger {
-  background: var(--bg-surface, rgba(255, 255, 255, 0.04));
+  background: var(--bg-surface);
 }
 
 .accordion-trigger-left {
@@ -440,7 +440,7 @@ onMounted(loadConfig)
 }
 
 .accordion-item--open .accordion-title {
-  color: var(--color-primary, #d4a843);
+  color: var(--amber);
 }
 
 .accordion-chevron {
@@ -452,11 +452,11 @@ onMounted(loadConfig)
 
 .accordion-item--open .accordion-chevron {
   transform: rotate(90deg);
-  color: var(--color-primary, #d4a843);
+  color: var(--amber);
 }
 
 .accordion-body {
-  background: var(--bg-base, #1a1a1a);
+  background: var(--bg-base);
   border-top: 1px solid var(--wire);
   overflow: hidden;
 }
@@ -530,7 +530,7 @@ onMounted(loadConfig)
   font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.06em;
-  color: var(--color-primary, #d4a843);
+  color: var(--amber);
 }
 
 .tutorial-item-desc {
@@ -559,8 +559,8 @@ onMounted(loadConfig)
   width: 1.6rem;
   height: 1.6rem;
   border-radius: 50%;
-  background: var(--color-primary, #6c63ff);
-  color: #fff;
+  background: var(--amber-light);
+  color: var(--bg-void);
   font-size: var(--text-xs);
   font-weight: 700;
   display: flex;
@@ -625,7 +625,7 @@ kbd {
 }
 
 .btn-copy.copied {
-  color: #4caf50;
-  border-color: #4caf50;
+  color: var(--green-light);
+  border-color: var(--green-light);
 }
 </style>

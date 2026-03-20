@@ -395,7 +395,7 @@ async function handleGenerateKey() {
 }
 
 .resale-how-it-works.is-open {
-  border-color: rgba(200, 164, 52, 0.35);
+  border-color: var(--wire-gold);
 }
 
 .resale-hiw-header {
@@ -412,7 +412,7 @@ async function handleGenerateKey() {
 }
 
 .resale-hiw-header:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-elevated);
 }
 
 .resale-hiw-body {
@@ -465,7 +465,7 @@ async function handleGenerateKey() {
   height: 28px;
   border-radius: 50%;
   background: var(--amber-dim);
-  border: 1px solid rgba(200, 164, 52, 0.3);
+  border: 1px solid var(--wire-gold);
   color: var(--amber);
   font-family: var(--font-ui);
   font-size: var(--text-xs);
@@ -477,8 +477,8 @@ async function handleGenerateKey() {
 }
 
 .resale-hiw-step-num--warning {
-  background: rgba(220, 100, 60, 0.12);
-  border-color: rgba(220, 100, 60, 0.3);
+  background: var(--orange-dim);
+  border-color: var(--orange);
   color: var(--orange);
 }
 
@@ -515,13 +515,13 @@ async function handleGenerateKey() {
 .alert-error-inline {
   background: var(--red-dim);
   border-color: var(--red);
-  color: #e8a0a0;
+  color: var(--red);
 }
 
 .alert-warning-inline {
   background: var(--orange-dim);
   border-color: var(--orange);
-  color: #d4a060;
+  color: var(--orange);
 }
 
 /* Confirm row */
@@ -565,15 +565,15 @@ async function handleGenerateKey() {
 }
 
 .modal-policy-ok {
-  background: rgba(60, 180, 100, 0.08);
-  border: 1px solid rgba(60, 180, 100, 0.2);
-  color: rgba(120, 200, 140, 0.85);
+  background: var(--green-dim);
+  border: 1px solid var(--green-dim);
+  color: var(--green-light);
 }
 
 .modal-policy-warn {
   background: var(--red-dim);
-  border: 1px solid rgba(200, 80, 80, 0.25);
-  color: #e8a0a0;
+  border: 1px solid var(--red-dim);
+  color: var(--red);
 }
 
 .modal-policy-icon {
