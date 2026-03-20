@@ -260,7 +260,7 @@ const tutorialSections = [
       },
       {
         label: 'Modo disfarce → ATIVAR',
-        desc: 'Transforma a aparência do aplicativo para camuflá-lo. Atenção: será necessário reinstalar o aplicativo para reverter.',
+        desc: 'Transforma o aplicativo em um conversor de youtube para mp3. Atenção: será necessário seguir as instruções abaixo para reverter.',
       },
     ],
   },
