@@ -233,6 +233,25 @@ function formatDate(iso: string | null) {
   return new Date(iso).toLocaleDateString('pt-BR')
 }
 
+function lastSeenAgo(iso: string | null) {
+  if (!iso) return '—'
+
+  const now = new Date()
+  const last = new Date(iso)
+
+  const diffMs = now.getTime() - last.getTime()
+  const diffMinutes = Math.floor(diffMs / 1000 / 60)
+  const diffHours = Math.floor(diffMinutes / 60)
+
+  if (diffMinutes < 1) return 'agora'
+
+  if (diffMinutes < 60) {
+    return `${diffMinutes} ${diffMinutes === 1 ? 'minuto' : 'minutos'}`
+  }
+
+  return `${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`
+}
+
 function daysLeft(iso: string | null) {
   if (!iso) return '—'
   const diff = Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000)
@@ -486,6 +505,7 @@ function daysLeft(iso: string | null) {
                 <th>Licença</th>
                 <th>Dias</th>
                 <th>Créditos</th>
+                <th>Last seen</th>
                 <th>Ações</th>
               </tr>
             </thead>
@@ -522,6 +542,9 @@ function daysLeft(iso: string | null) {
                   </td>
                   <td class="mono" style="font-size: var(--text-sm); color: var(--amber)">
                     {{ user.credits }}
+                  </td>
+                  <td class="mono" style="font-size: var(--text-xs)">
+                    {{ lastSeenAgo(user.last_seen) }}
                   </td>
                   <td>
                     <div class="flex gap-2" @click.stop>
