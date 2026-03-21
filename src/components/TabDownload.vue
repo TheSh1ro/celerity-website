@@ -1,6 +1,44 @@
 <!-- components/TabDownload.vue -->
 <template>
   <div class="tab-content space-y-6">
+    <!-- ─── Sobre o aplicativo ────────────────────────────────────────────────────── -->
+    <div class="card card--highlight">
+      <div class="card-header">
+        <h2 class="card-title">Sobre o aplicativo</h2>
+        <p class="card-subtitle">O que é o CELERITY</p>
+      </div>
+
+      <div class="card-body">
+        <p class="card-text">
+          O <strong>CELERITY</strong> é um aplicativo focado em automação de tarefas repetitivas.
+        </p>
+
+        <ul class="feature-list" style="margin-top: var(--space-3)">
+          <li>
+            <span class="feature-dot"></span>
+            Cliques contínuos (<code>mouse1</code>)
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            Arrastar itens entre coordenadas
+            <code>[x1,y1]</code> → <code>[x2,y2]</code>
+          </li>
+          <li>
+            <span class="feature-dot"></span>
+            Execução de macros interativos
+          </li>
+        </ul>
+
+        <div class="alert alert-info" style="margin-top: var(--space-3)">
+          <span>ℹ</span>
+          <p>
+            CELERITY é um macro: o aplicativo não altera o jogo, apenas executa ações simulando
+            interação do usuário.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <h2 class="card-title">Download</h2>
@@ -59,7 +97,7 @@
           >
             <button class="accordion-trigger" @click="toggleSection(section.id)">
               <span class="accordion-trigger-left">
-                <span class="accordion-index">{{ String(index + 1).padStart(2, '0') }}</span>
+                <span class="accordion-index">{{ String(index + 1).padStart(2, '0') }}.</span>
                 <span class="accordion-title">{{ section.title }}</span>
               </span>
               <span class="accordion-chevron">▸</span>
@@ -314,6 +352,41 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* ─── Info card ─────────────────────────────────────────────────────────── */
+.card--highlight {
+  border: 1px solid var(--amber);
+}
+
+.card-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.feature-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.feature-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--amber);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* ─── Download card ─────────────────────────────────────────────────────────── */
 
 .download-grid {
@@ -388,20 +461,18 @@ onMounted(() => {
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--bg-elevated);
+  background: var(--amber);
   border: none;
   cursor: pointer;
   text-align: left;
   transition: background 0.15s;
 }
 
-.accordion-trigger:hover {
-  background: var(--bg-surface);
+/* .accordion-trigger:hover {
 }
 
 .accordion-item--open .accordion-trigger {
-  background: var(--bg-surface);
-}
+} */
 
 .accordion-trigger-left {
   display: flex;
@@ -411,23 +482,22 @@ onMounted(() => {
 
 .accordion-index {
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  color: var(--text-muted);
+  font-size: var(--text-base);
+  color: var(--text-on-accent);
   letter-spacing: 0.08em;
   flex-shrink: 0;
 }
 
 .accordion-title {
   font-family: var(--font-ui);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--text-secondary);
+  color: var(--text-on-accent);
 }
 
-.accordion-item--open .accordion-title {
-  color: var(--amber);
-}
+/* .accordion-item--open .accordion-title {
+} */
 
 .accordion-chevron {
   font-size: var(--text-2xs);
