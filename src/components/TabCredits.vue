@@ -15,7 +15,8 @@
             </p>
             <p style="font-size: var(--text-sm); margin-top: 2px">
               A integração com gateway de pagamento está sendo configurada. Entre em contato com o
-              administrador para adicionar créditos manualmente.
+              administrador para adicionar créditos manualmente. 1 milhão de rublos = 15 créditos,
+              ou pagamento via PIX.
             </p>
           </div>
         </div>
