@@ -169,7 +169,7 @@ function formatDate(date: string | null) {
               <span class="soc-pulse" :class="onlineCount > 0 ? 'live' : 'idle'"></span>
             </div>
             <div class="soc-row">
-              <span class="soc-metric-label">Online agora</span>
+              <span class="soc-metric-label">Usando agora</span>
               <span class="soc-metric-value" :class="onlineCount > 0 ? 'online' : 'zero'">{{
                 onlineCount
               }}</span>
