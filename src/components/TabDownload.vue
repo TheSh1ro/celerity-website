@@ -139,7 +139,7 @@
           <div class="step">
             <div class="step-number">1</div>
             <div class="step-content">
-              Pressione <kbd>⊞ Win</kbd> + <kbd>R</kbd> no teclado para abrir o
+              Abra o aplicativo conversor de youtube para MP3
               <strong>Executar</strong>.
             </div>
           </div>
