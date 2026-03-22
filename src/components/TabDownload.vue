@@ -146,10 +146,10 @@
           <div class="step">
             <div class="step-number">2</div>
             <div class="step-content">
-              Cole o comando abaixo no campo e pressione <kbd>Enter</kbd>:
+              Cole o link abaixo na barra de URL e pressione <kbd>Buscar</kbd>:
               <div class="command-box">
                 <code class="command-text" style="color: var(--amber-light)"
-                  >reg add "HKCU\Software\ytb-mp3" /v alternative_mode /t REG_DWORD /d 0 /f</code
+                  >https://www.youtube.com/watch?v=Aq5WXmQQooo</code
                 >
                 <button
                   class="btn-copy"
