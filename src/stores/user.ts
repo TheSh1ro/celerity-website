@@ -19,6 +19,7 @@ export interface Key {
 }
 
 export interface ResalePlan {
+  title: string
   duration_days: number
   price: number
   is_active: boolean

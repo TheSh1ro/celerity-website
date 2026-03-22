@@ -93,7 +93,7 @@ async function handleGenerateKey() {
             <div v-for="plan in userStore.resalePlans" :key="plan.duration_days" class="plan-card">
               <div class="plan-header">
                 <h3 class="plan-name">{{ plan.duration_days }} Dias</h3>
-                <p class="plan-description">Key de revenda</p>
+                <p class="plan-description">{{ plan.title }}</p>
               </div>
               <div class="plan-price">
                 <span class="plan-price-value">{{ plan.price }}</span>
